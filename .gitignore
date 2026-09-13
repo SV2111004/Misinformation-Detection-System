@@ -16,6 +16,10 @@ models/*.pkl
 models/*.pt
 models/*.pth
 models/*.bin
+models/*.safetensors
+models/distilbert_liar_final/
+models/distilbert_check/
+models/distilbert_sanity_check/
 
 # Dataset
 dataset/
