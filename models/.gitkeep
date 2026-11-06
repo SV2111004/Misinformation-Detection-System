@@ -1,0 +1,3 @@
+# Placeholder to preserve models directory structure in git
+# Large model binaries (*.safetensors, *.pkl, *.bin) are excluded via .gitignore
+

@@ -1,40 +1,154 @@
-# Virtual environment
-venv/
-.venv/
+# ==============================================================================
+# Git Ignore Configuration - Political Misinformation Detection System
+# Project: AI-Powered Agentic System for Political Misinformation Detection,
+#          Influence Analysis and Propagation Mitigation
+# ==============================================================================
 
-# Python
+# ------------------------------------------------------------------------------
+# 1. Python Bytecode, Caches & Virtual Environments
+# ------------------------------------------------------------------------------
 __pycache__/
 *.py[cod]
+*$py.class
 *.pyo
+*.pyd
 
-# Jupyter
-.ipynb_checkpoints/
+# Testing & Linting Caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+nosetests.xml
+coverage.xml
+*.cover
 
-# Environment variables
-.env
+# Virtual Environments (Local runtimes)
+venv/
+.venv/
+env/
+ENV/
+backend/venv/
+env.bak/
+venv.bak/
 
-# Node
-node_modules/
-frontend/node_modules/
-frontend/dist/
-dist/
+# ------------------------------------------------------------------------------
+# 2. Machine Learning Weights, Binaries & Model Checkpoints
+# Excludes heavy model binaries that exceed GitHub's 100MB file limit
+# (e.g., model.safetensors is 255.4 MB)
+# ------------------------------------------------------------------------------
+*.safetensors
+*.pt
+*.pth
+*.bin
+*.pkl
+*.h5
+*.onnx
 
-# Trained models
-models/*.pkl
-models/*.pt
-models/*.pth
-models/*.bin
-models/*.safetensors
+# Model directories and checkpoint caches
+models/*
+!models/.gitkeep
 models/distilbert_liar_final/
 models/distilbert_check/
 models/distilbert_sanity_check/
+checkpoints/
 
-# Dataset
-dataset/
+# ------------------------------------------------------------------------------
+# 3. Large Datasets (Raw & Processed)
+# Datasets are kept locally and documented in README for reproducibility.
+# ------------------------------------------------------------------------------
+dataset/*
+!dataset/.gitkeep
+dataset/liar/
+dataset/politifact_evidence/
+dataset/fakenewsnet/
+*.tsv
+*.csv
+*.jsonl
+*.parquet
+*.arrow
+*.tar.gz
+*.zip
+*.7z
 
-# VS Code
-.vscode/
+# ------------------------------------------------------------------------------
+# 4. ChromaDB & SQLite Persistent Storage
+# Generated local vector store indexes and SQLite database files
+# ------------------------------------------------------------------------------
+dataset/politifact_evidence/chroma_db/
+chroma_db/
+*.sqlite3
+*.sqlite3-journal
+*.sqlite3-wal
+*.sqlite3-shm
 
-# OS
+# ------------------------------------------------------------------------------
+# 5. Frontend & Node Dependencies
+# ------------------------------------------------------------------------------
+node_modules/
+frontend/node_modules/
+dist/
+frontend/dist/
+dist-ssr/
+build/
+.vite/
+frontend/.vite/
+coverage/
+
+# npm / yarn / pnpm debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ------------------------------------------------------------------------------
+# 6. Sensitive Configuration & Secrets
+# Actual environment variables and credentials must never be committed.
+# .env.example files are explicitly preserved.
+# ------------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+*.pem
+*.key
+*.crt
+*.pfx
+secrets/
+credentials.json
+
+# ------------------------------------------------------------------------------
+# 7. Jupyter Notebook Checkpoints
+# ------------------------------------------------------------------------------
+.ipynb_checkpoints/
+*/.ipynb_checkpoints/*
+
+# ------------------------------------------------------------------------------
+# 8. Operating System & IDE Artifacts
+# ------------------------------------------------------------------------------
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
+
+# IDE Configurations
+.vscode/
+!.vscode/settings.json
+!.vscode/extensions.json
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# ------------------------------------------------------------------------------
+# 9. Logs & Temporary Files
+# ------------------------------------------------------------------------------
+*.log
+logs/
+tmp/
+temp/

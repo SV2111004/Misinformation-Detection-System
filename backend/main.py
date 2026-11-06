@@ -3,14 +3,57 @@ from pathlib import Path
 import joblib
 import torch
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from transformers import (
     AutoTokenizer,
     AutoModelForSequenceClassification,
 )
+
+
+try:
+    from evidence_retriever import (
+        DISCLAIMER_TEXT,
+        get_evidence_retriever,
+    )
+except ImportError:
+    from backend.evidence_retriever import (
+        DISCLAIMER_TEXT,
+        get_evidence_retriever,
+    )
+
+try:
+    from influence_analyzer import (
+        INFLUENCE_DISCLAIMER_TEXT,
+        get_influence_analyzer,
+    )
+except ImportError:
+    from backend.influence_analyzer import (
+        INFLUENCE_DISCLAIMER_TEXT,
+        get_influence_analyzer,
+    )
+
+try:
+    from rag_engine import (
+        RAG_DISCLAIMER_TEXT,
+        get_rag_engine,
+    )
+except ImportError:
+    from backend.rag_engine import (
+        RAG_DISCLAIMER_TEXT,
+        get_rag_engine,
+    )
+
+try:
+    from orchestrator import (
+        get_orchestrator,
+    )
+except ImportError:
+    from backend.orchestrator import (
+        get_orchestrator,
+    )
 
 
 # ============================================================
@@ -148,7 +191,75 @@ print(
 # ============================================================
 
 class ClaimRequest(BaseModel):
-    claim: str
+    claim: str = Field(
+        ...,
+        description="The statement or claim text to be analyzed",
+        min_length=1,
+        max_length=5000,
+    )
+
+
+class EvidenceSearchRequest(BaseModel):
+    claim: str = Field(
+        ...,
+        description="The statement or claim text to search historical evidence for",
+        min_length=1,
+        max_length=5000,
+    )
+    top_k: int = Field(
+        5,
+        description="Maximum number of historical evidence records to return (1 to 20)",
+        ge=1,
+        le=20,
+    )
+    min_score: float = Field(
+        0.0,
+        description="Minimum textual similarity score threshold (0.0 to 1.0)",
+        ge=0.0,
+        le=1.0,
+    )
+
+
+class InfluenceAnalysisRequest(BaseModel):
+    claim: str = Field(
+        ...,
+        description="The statement or claim text to analyze historical influence for",
+        min_length=1,
+        max_length=5000,
+    )
+    top_k: int = Field(
+        3,
+        description="Maximum number of historical matched stories to return (1 to 20)",
+        ge=1,
+        le=20,
+    )
+    min_score: float = Field(
+        0.08,
+        description="Minimum textual similarity score threshold (0.0 to 1.0)",
+        ge=0.0,
+        le=1.0,
+    )
+
+
+class AgentAnalysisRequest(BaseModel):
+    claim: str = Field(
+        ...,
+        description="The statement or claim text to be analyzed by the multi-agent system",
+        min_length=1,
+        max_length=5000,
+    )
+    top_k_evidence: int = Field(
+        5,
+        description="Maximum historical evidence citations to retrieve (1 to 20)",
+        ge=1,
+        le=20,
+    )
+    top_k_influence: int = Field(
+        3,
+        description="Maximum historical influence stories to match (1 to 20)",
+        ge=1,
+        le=20,
+    )
 
 
 # ============================================================
@@ -167,6 +278,7 @@ def root():
         "models": [
             "TF-IDF + Logistic Regression",
             "DistilBERT",
+            "Multi-Agent Orchestrator (5 Specialized Agents + Hybrid RAG)",
         ],
     }
 
@@ -309,13 +421,17 @@ def predict(request: ClaimRequest):
 
     text = request.claim.strip()
 
-    if not text:
+    if not text or len(text) < 3:
+        raise HTTPException(
+            status_code=400,
+            detail="Claim cannot be empty and must contain at least 3 non-whitespace characters.",
+        )
 
-        return {
-            "error": (
-                "Claim cannot be empty."
-            )
-        }
+    if len(text) > 5000:
+        raise HTTPException(
+            status_code=400,
+            detail="Claim exceeds maximum allowed length of 5000 characters.",
+        )
 
     result = predict_distilbert(
         text
@@ -339,13 +455,17 @@ def compare_models(
 
     text = request.claim.strip()
 
-    if not text:
+    if not text or len(text) < 3:
+        raise HTTPException(
+            status_code=400,
+            detail="Claim cannot be empty and must contain at least 3 non-whitespace characters.",
+        )
 
-        return {
-            "error": (
-                "Claim cannot be empty."
-            )
-        }
+    if len(text) > 5000:
+        raise HTTPException(
+            status_code=400,
+            detail="Claim exceeds maximum allowed length of 5000 characters.",
+        )
 
     # ------------------------------
     # Baseline prediction
@@ -376,6 +496,160 @@ def compare_models(
         "distilbert": distilbert_result,
 
     }
+
+
+
+
+# ============================================================
+# 16. EVIDENCE SEARCH ENDPOINTS
+# ============================================================
+
+@app.post("/evidence/search")
+def search_evidence(
+    request: EvidenceSearchRequest,
+):
+    """
+    Search historical claims and published justifications from LIAR-PLUS
+    textually similar to the user-supplied claim.
+
+    Returns ranked records with similarity scores and explicit disclaimer.
+    """
+    text = request.claim.strip()
+
+    if not text or len(text) < 3:
+        raise HTTPException(
+            status_code=400,
+            detail="Claim cannot be empty and must contain at least 3 non-whitespace characters.",
+        )
+
+    if len(text) > 5000:
+        raise HTTPException(
+            status_code=400,
+            detail="Claim exceeds maximum allowed length of 5000 characters.",
+        )
+
+    retriever = get_evidence_retriever()
+    results = retriever.search(text, top_k=request.top_k, min_score=request.min_score)
+
+    return {
+        "query": text,
+        "result_count": len(results),
+        "results": results,
+        "disclaimer": DISCLAIMER_TEXT,
+    }
+
+
+@app.get("/evidence/stats")
+def evidence_stats():
+    """
+    Returns retrieval index statistics (record counts, splits, vocabulary size).
+    """
+    retriever = get_evidence_retriever()
+    return retriever.get_index_stats()
+
+
+# ============================================================
+# 17. INFLUENCE ANALYSIS ENDPOINTS
+# ============================================================
+
+@app.post("/influence/analyze")
+def analyze_influence(request: InfluenceAnalysisRequest):
+    """
+    Analyze historical political misinformation propagation and social volume
+    recorded in FakeNewsNet-PolitiFact for news stories textually similar to the claim.
+    """
+    text = request.claim.strip()
+
+    if not text or len(text) < 3:
+        raise HTTPException(
+            status_code=400,
+            detail="Claim cannot be empty and must contain at least 3 non-whitespace characters.",
+        )
+
+    if len(text) > 5000:
+        raise HTTPException(
+            status_code=400,
+            detail="Claim exceeds maximum allowed length of 5000 characters.",
+        )
+
+    analyzer = get_influence_analyzer()
+    results = analyzer.search(text, top_k=request.top_k, min_score=request.min_score)
+    benchmark_stats = analyzer.get_benchmark_stats()
+
+    return {
+        "query": text,
+        "result_count": len(results),
+        "results": results,
+        "benchmark_baselines": {
+            "total_stories": benchmark_stats.get("total_stories", 0),
+            "fake_median_tweets": benchmark_stats.get("fake_tweet_stats", {}).get("median", 0.0),
+            "fake_mean_tweets": benchmark_stats.get("fake_tweet_stats", {}).get("mean", 0.0),
+            "real_median_tweets": benchmark_stats.get("real_tweet_stats", {}).get("median", 0.0),
+            "real_mean_tweets": benchmark_stats.get("real_tweet_stats", {}).get("mean", 0.0),
+        },
+        "disclaimer": INFLUENCE_DISCLAIMER_TEXT,
+    }
+
+
+@app.get("/influence/stats")
+def influence_stats():
+    """
+    Returns FakeNewsNet corpus statistics and distribution baselines.
+    """
+    analyzer = get_influence_analyzer()
+    return analyzer.get_benchmark_stats()
+
+
+# ============================================================
+# 18. MULTI-AGENT ORCHESTRATION & RAG ENDPOINTS
+# ============================================================
+
+@app.post("/agent/analyze")
+async def analyze_claim_multiagent(request: AgentAnalysisRequest):
+    """
+    Execute full multi-agent political misinformation analysis workflow:
+    - Agent A: Primary DistilBERT classification & confidence calibration
+    - Agent B: Hybrid RAG evidence retrieval & grounded synthesis (LIAR-PLUS)
+    - Agent C: Historical social influence indicator matching (FakeNewsNet)
+    - Agent D: Cross-verification, uncertainty modeling & risk synthesis
+    - Agent E: Actionable, responsible mitigation recommendations
+    """
+    text = request.claim.strip()
+
+    if not text or len(text) < 3:
+        raise HTTPException(
+            status_code=400,
+            detail="Claim cannot be empty and must contain at least 3 non-whitespace characters.",
+        )
+
+    if len(text) > 5000:
+        raise HTTPException(
+            status_code=400,
+            detail="Claim exceeds maximum allowed length of 5000 characters.",
+        )
+
+    orchestrator = get_orchestrator()
+    try:
+        report = await orchestrator.analyze(
+            claim=text,
+            top_k_evidence=request.top_k_evidence,
+            top_k_influence=request.top_k_influence,
+        )
+        return report
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Agent orchestration failed: {str(e)}",
+        )
+
+
+@app.get("/rag/stats")
+def rag_stats():
+    """
+    Returns RAG vector store and index statistics.
+    """
+    engine = get_rag_engine()
+    return engine.get_stats()
 
 
 # ============================================================
