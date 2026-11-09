@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 # Standard Twitter Snowflake constants
 TWITTER_EPOCH_MS = 1288834974657  # Nov 4, 2010 01:42:54.657 UTC
 SNOWFLAKE_MIN_ID = 30000000000     # First Snowflake IDs began ~30 billion (Nov 2010)
-MAX_VALID_YEAR = 2026              # Bound for valid decodable timestamps
+MAX_VALID_YEAR = max(2026, datetime.datetime.now(datetime.timezone.utc).year + 1)
 
 INFLUENCE_DISCLAIMER_TEXT = (
     "These indicators describe historical tweet IDs recorded for matching benchmark stories. "

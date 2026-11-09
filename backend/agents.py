@@ -134,10 +134,17 @@ class EvidenceRAGAgent:
                 summary = "No relevant historical evidence found in LIAR-PLUS meeting the relevance threshold."
             else:
                 top_item = records[0]
+                synthesis_note = ""
+                if grounded_report.get("synthesis_mode") == "llm":
+                    provider_tag = str(grounded_report.get("llm_provider") or "LLM").capitalize()
+                    model_tag = grounded_report.get("llm_model") or ""
+                    synthesis_note = f" Grounded synthesis generated via {provider_tag} ({model_tag})."
+
                 summary = (
                     f"Retrieved {rec_count} historical evidence record(s). "
                     f"Top match [{top_item['statement_id']}] by {top_item.get('speaker', 'N/A')} "
                     f"(verdict: '{top_item.get('verdict')}', hybrid similarity: {top_item['similarity_score']:.1%})."
+                    f"{synthesis_note}"
                 )
 
             return {
@@ -155,6 +162,11 @@ class EvidenceRAGAgent:
                     "verdict_distribution": grounded_report.get("verdict_distribution", {}),
                     "misaligned_citations_count": grounded_report.get("misaligned_citations_count", 0),
                     "generation_mode": grounded_report.get("generation_mode", "deterministic_fallback"),
+                    "synthesis_mode": grounded_report.get("synthesis_mode", "template"),
+                    "llm_provider": grounded_report.get("llm_provider"),
+                    "llm_model": grounded_report.get("llm_model"),
+                    "llm_status": grounded_report.get("llm_status", "skipped_no_key"),
+                    "fallback_reason": grounded_report.get("fallback_reason"),
                 },
                 "disclaimer": (
                     "Retrieved citations reflect historical PolitiFact rulings from the LIAR-PLUS dataset. "

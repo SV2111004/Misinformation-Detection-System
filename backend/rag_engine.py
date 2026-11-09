@@ -59,6 +59,24 @@ DEFAULT_PROCESSED_FILE = (
 )
 
 
+def _load_env_credentials():
+    """Safely loads GEMINI_API_KEY, OPENAI_API_KEY, and model overrides from .env if not present in os.environ."""
+    root_dir = Path(__file__).resolve().parent.parent
+    env_file = root_dir / ".env"
+    if env_file.exists():
+        try:
+            for line in env_file.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    k, v = line.split("=", 1)
+                    k = k.strip()
+                    v = v.strip().strip("\"'")
+                    if k in ("GEMINI_API_KEY", "OPENAI_API_KEY", "GEMINI_MODEL", "OPENAI_MODEL") and k not in os.environ:
+                        os.environ[k] = v
+        except Exception as e:
+            logger.debug(f"Could not read .env: {e}")
+
+
 class RAGEngine:
     """
     Persistent RAG Engine providing hybrid semantic + lexical retrieval over LIAR-PLUS.
@@ -403,8 +421,12 @@ class RAGEngine:
         is produced that explicitly cites source IDs, flags historical label distributions,
         and reports insufficiency or alignment warnings.
         """
-        gemini_key = os.environ.get("GEMINI_API_KEY")
-        openai_key = os.environ.get("OPENAI_API_KEY")
+        _load_env_credentials()
+        raw_gemini_key = os.environ.get("GEMINI_API_KEY", "").strip()
+        raw_openai_key = os.environ.get("OPENAI_API_KEY", "").strip()
+
+        gemini_key = raw_gemini_key if raw_gemini_key and not raw_gemini_key.startswith("your_") else None
+        openai_key = raw_openai_key if raw_openai_key and not raw_openai_key.startswith("your_") else None
 
         if not evidence_records:
             return {
@@ -418,6 +440,11 @@ class RAGEngine:
                 "citations_count": 0,
                 "has_conflicts": False,
                 "generation_mode": "deterministic_fallback",
+                "synthesis_mode": "template",
+                "llm_provider": None,
+                "llm_model": None,
+                "llm_status": "skipped_insufficient_evidence",
+                "fallback_reason": "No evidence records retrieved meeting similarity threshold",
             }
 
         # Analyze historical verdicts
@@ -429,10 +456,18 @@ class RAGEngine:
         has_conflicts = len(verdict_counts) > 1
         misaligned_count = sum(1 for r in evidence_records if not r.get("has_context_alignment", True))
 
+        llm_summary = None
+        llm_provider = None
+        llm_model = None
+        llm_status = "skipped_no_key"
+        fallback_reason = "No valid GEMINI_API_KEY or OPENAI_API_KEY configured in environment"
+
         # Check if an LLM is configured
         if gemini_key or openai_key:
             try:
-                llm_summary = self._call_llm_for_summary(claim, evidence_records, gemini_key, openai_key)
+                llm_summary, llm_provider, llm_model, llm_status, fallback_reason = self._call_llm_for_summary(
+                    claim, evidence_records, gemini_key, openai_key
+                )
                 if llm_summary:
                     return {
                         "summary": llm_summary,
@@ -442,11 +477,18 @@ class RAGEngine:
                         "verdict_distribution": verdict_counts,
                         "misaligned_citations_count": misaligned_count,
                         "generation_mode": "llm_grounded",
+                        "synthesis_mode": "llm",
+                        "llm_provider": llm_provider,
+                        "llm_model": llm_model,
+                        "llm_status": "success",
+                        "fallback_reason": None,
                     }
             except Exception as e:
                 logger.warning(f"LLM synthesis invocation failed, falling back to deterministic: {e}")
+                llm_status = "failed"
+                fallback_reason = f"Unhandled exception during LLM synthesis: {str(e)}"
 
-        # Deterministic grounded synthesis
+        # Deterministic grounded synthesis (reliable fallback)
         top_rec = evidence_records[0]
         top_id = top_rec.get("statement_id")
         top_claim = top_rec.get("claim")
@@ -489,6 +531,11 @@ class RAGEngine:
             "verdict_distribution": verdict_counts,
             "misaligned_citations_count": misaligned_count,
             "generation_mode": "deterministic_fallback",
+            "synthesis_mode": "template",
+            "llm_provider": llm_provider,
+            "llm_model": llm_model,
+            "llm_status": llm_status,
+            "fallback_reason": fallback_reason,
         }
 
     def _call_llm_for_summary(
@@ -497,8 +544,11 @@ class RAGEngine:
         evidence_records: List[Dict[str, Any]],
         gemini_key: Optional[str],
         openai_key: Optional[str],
-    ) -> Optional[str]:
-        """Helper to invoke configured LLM with strict grounding constraints."""
+    ) -> Tuple[Optional[str], Optional[str], Optional[str], str, Optional[str]]:
+        """
+        Helper to invoke configured LLM with strict grounding constraints.
+        Returns: (summary_text, provider_name, model_name, status, failure_reason)
+        """
         import httpx
 
         citations_text = "\n\n".join(
@@ -520,19 +570,44 @@ class RAGEngine:
             f"5. Keep the summary under 120 words."
         )
 
-        if gemini_key:
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={gemini_key}"
-            payload = {"contents": [{"parts": [{"text": prompt}]}]}
-            resp = httpx.post(url, json=payload, timeout=10.0)
-            if resp.status_code == 200:
-                data = resp.json()
-                return data["candidates"][0]["content"]["parts"][0]["text"].strip()
+        failure_reasons = []
 
+        # 1. Try Google Gemini if key is available
+        if gemini_key:
+            configured_gemini_model = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash")
+            candidate_gemini_models = [
+                configured_gemini_model,
+                "gemini-3.5-flash-lite",
+                "gemini-flash-latest",
+            ]
+            # Deduplicate while preserving order
+            seen_models = set()
+            candidate_gemini_models = [m for m in candidate_gemini_models if not (m in seen_models or seen_models.add(m))]
+
+            for model_name in candidate_gemini_models:
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={gemini_key}"
+                payload = {"contents": [{"parts": [{"text": prompt}]}]}
+                try:
+                    resp = httpx.post(url, json=payload, timeout=15.0)
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        candidates = data.get("candidates", [])
+                        if candidates and "content" in candidates[0] and "parts" in candidates[0]["content"]:
+                            summary_text = candidates[0]["content"]["parts"][0].get("text", "").strip()
+                            if summary_text:
+                                return (summary_text, "gemini", model_name, "success", None)
+                    else:
+                        failure_reasons.append(f"Gemini {model_name} HTTP {resp.status_code}: {resp.text[:120]}")
+                except Exception as e:
+                    failure_reasons.append(f"Gemini {model_name} network exception: {str(e)}")
+
+        # 2. Try OpenAI if key is available
         if openai_key:
+            openai_model = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
             url = "https://api.openai.com/v1/chat/completions"
             headers = {"Authorization": f"Bearer {openai_key}", "Content-Type": "application/json"}
             payload = {
-                "model": "gpt-4o-mini",
+                "model": openai_model,
                 "messages": [
                     {"role": "system", "content": "You are an objective academic evidence synthesizer."},
                     {"role": "user", "content": prompt},
@@ -540,12 +615,27 @@ class RAGEngine:
                 "max_tokens": 200,
                 "temperature": 0.2,
             }
-            resp = httpx.post(url, json=payload, headers=headers, timeout=10.0)
-            if resp.status_code == 200:
-                data = resp.json()
-                return data["choices"][0]["message"]["content"].strip()
+            try:
+                resp = httpx.post(url, json=payload, headers=headers, timeout=15.0)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    choices = data.get("choices", [])
+                    if choices and "message" in choices[0] and "content" in choices[0]["message"]:
+                        summary_text = choices[0]["message"]["content"].strip()
+                        if summary_text:
+                            return (summary_text, "openai", openai_model, "success", None)
+                else:
+                    failure_reasons.append(f"OpenAI {openai_model} HTTP {resp.status_code}: {resp.text[:120]}")
+            except Exception as e:
+                failure_reasons.append(f"OpenAI {openai_model} network exception: {str(e)}")
 
-        return None
+        # If we reached here, no LLM call succeeded
+        if not gemini_key and not openai_key:
+            return (None, None, None, "skipped_no_key", "No GEMINI_API_KEY or OPENAI_API_KEY configured in environment")
+
+        primary_failed_provider = "gemini" if gemini_key else "openai"
+        primary_failed_model = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash") if gemini_key else os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
+        return (None, primary_failed_provider, primary_failed_model, "failed", "; ".join(failure_reasons))
 
     def get_stats(self) -> Dict[str, Any]:
         """Returns statistics on the RAG collection."""
