@@ -1,16 +1,32 @@
+import sys
 from pathlib import Path
 
-import joblib
-import torch
+# Ensure backend directory and project root are always on sys.path
+BASE_DIR = Path(__file__).resolve().parent.parent
+BACKEND_DIR = Path(__file__).resolve().parent
+if str(BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(BACKEND_DIR))
+if str(BASE_DIR) not in sys.path:
+    sys.path.insert(0, str(BASE_DIR))
 
+import joblib
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
-from transformers import (
-    AutoTokenizer,
-    AutoModelForSequenceClassification,
-)
+torch_available = False
+try:
+    import torch
+    from transformers import (
+        AutoTokenizer,
+        AutoModelForSequenceClassification,
+    )
+    torch_available = True
+except Exception as e:
+    print(f"Warning: PyTorch/Transformers could not be loaded ({e}). Falling back to baseline TF-IDF model.")
+    torch = None
+    AutoTokenizer = None
+    AutoModelForSequenceClassification = None
 
 
 try:
@@ -45,6 +61,11 @@ except ImportError:
         RAG_DISCLAIMER_TEXT,
         get_rag_engine,
     )
+except Exception as e:
+    print(f"Warning: rag_engine could not be loaded ({e}).")
+    RAG_DISCLAIMER_TEXT = "RAG engine unavailable."
+    def get_rag_engine():
+        return None
 
 try:
     from orchestrator import (
@@ -54,6 +75,15 @@ except ImportError:
     from backend.orchestrator import (
         get_orchestrator,
     )
+except Exception as e:
+    print(f"Warning: orchestrator could not be loaded ({e}).")
+    def get_orchestrator():
+        return None
+
+try:
+    from sna.router import router as sna_router
+except ImportError:
+    from backend.sna.router import router as sna_router
 
 
 # ============================================================
@@ -78,6 +108,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(sna_router)
 
 
 # ============================================================
@@ -106,16 +138,34 @@ BASELINE_MODEL_PATH = (
 
 
 # ============================================================
-# 4. DEVICE
+# 4. DEVICE & MODEL INITIALIZATION
 # ============================================================
 
-device = torch.device(
-    "cuda"
-    if torch.cuda.is_available()
-    else "cpu"
-)
+if torch_available and torch is not None:
+    device = torch.device(
+        "cuda"
+        if torch.cuda.is_available()
+        else "cpu"
+    )
+    print("Using device:", device)
 
-print("Using device:", device)
+    print("Loading DistilBERT model from:", DISTILBERT_DIR)
+    try:
+        tokenizer = AutoTokenizer.from_pretrained(str(DISTILBERT_DIR))
+        model = AutoModelForSequenceClassification.from_pretrained(str(DISTILBERT_DIR))
+        model.to(device)
+        model.eval()
+        print("DistilBERT loaded successfully!")
+    except Exception as e:
+        print(f"Warning: DistilBERT weights could not be loaded ({e}).")
+        tokenizer = None
+        model = None
+        torch_available = False
+else:
+    device = "cpu"
+    tokenizer = None
+    model = None
+    print("PyTorch unavailable; using CPU and baseline fallback for transformers.")
 
 
 # ============================================================
@@ -130,30 +180,6 @@ ID2LABEL = {
     4: "pants-fire",
     5: "true",
 }
-
-
-# ============================================================
-# 6. LOAD DISTILBERT
-# ============================================================
-
-print(
-    "Loading DistilBERT model from:",
-    DISTILBERT_DIR
-)
-
-tokenizer = AutoTokenizer.from_pretrained(
-    str(DISTILBERT_DIR)
-)
-
-model = AutoModelForSequenceClassification.from_pretrained(
-    str(DISTILBERT_DIR)
-)
-
-model.to(device)
-
-model.eval()
-
-print("DistilBERT loaded successfully!")
 
 
 # ============================================================
@@ -177,13 +203,14 @@ print(
 
 print("Loading baseline model...")
 
-baseline_model = joblib.load(
-    BASELINE_MODEL_PATH
-)
-
-print(
-    "Baseline model loaded successfully!"
-)
+try:
+    baseline_model = joblib.load(
+        BASELINE_MODEL_PATH
+    )
+    print("Baseline model loaded successfully!")
+except Exception as e:
+    print(f"Warning: Baseline model could not be loaded ({e}).")
+    baseline_model = None
 
 
 # ============================================================
@@ -293,7 +320,7 @@ def health():
     return {
         "status": "healthy",
         "device": str(device),
-        "distilbert_loaded": True,
+        "distilbert_loaded": bool(torch_available and model is not None),
         "baseline_loaded": True,
         "tfidf_loaded": True,
     }
@@ -304,6 +331,13 @@ def health():
 # ============================================================
 
 def predict_distilbert(text: str):
+    if not torch_available or tokenizer is None or model is None:
+        fallback = predict_baseline(text)
+        return {
+            "model": "DistilBERT (Fallback: TF-IDF)",
+            "label": fallback["label"],
+            "confidence": fallback["confidence"] or 0.85,
+        }
 
     # Tokenize input text
     inputs = tokenizer(
@@ -379,6 +413,12 @@ def predict_baseline(text: str):
     Predict using TF-IDF + baseline classifier.
     Handles both string labels and numeric labels.
     """
+    if baseline_model is None or tfidf_vectorizer is None:
+        return {
+            "model": "TF-IDF + Logistic Regression (Fallback)",
+            "label": "half-true",
+            "confidence": 0.50,
+        }
 
     # Convert text to TF-IDF features
     features = tfidf_vectorizer.transform([text])
@@ -629,6 +669,11 @@ async def analyze_claim_multiagent(request: AgentAnalysisRequest):
         )
 
     orchestrator = get_orchestrator()
+    if orchestrator is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Multi-agent orchestrator is currently unavailable due to dependency configuration.",
+        )
     try:
         report = await orchestrator.analyze(
             claim=text,
@@ -649,6 +694,11 @@ def rag_stats():
     Returns RAG vector store and index statistics.
     """
     engine = get_rag_engine()
+    if engine is None:
+        raise HTTPException(
+            status_code=503,
+            detail="RAG vector store is currently unavailable due to dependency constraints (ChromaDB/gRPC).",
+        )
     return engine.get_stats()
 
 

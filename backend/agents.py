@@ -114,16 +114,31 @@ class EvidenceRAGAgent:
     def _get_engine(self):
         if self._rag_engine is None:
             try:
-                from rag_engine import get_rag_engine
-            except ImportError:
-                from backend.rag_engine import get_rag_engine
-            self._rag_engine = get_rag_engine()
+                try:
+                    from rag_engine import get_rag_engine
+                except ImportError:
+                    from backend.rag_engine import get_rag_engine
+                self._rag_engine = get_rag_engine()
+            except Exception as e:
+                logger.warning(f"Could not load RAG engine: {e}")
+                self._rag_engine = None
         return self._rag_engine
 
     def run(self, claim: str, top_k: int = 5, min_score: float = 0.05) -> Dict[str, Any]:
         start_time = time.time()
         try:
             engine = self._get_engine()
+            if engine is None:
+                duration_ms = round((time.time() - start_time) * 1000, 2)
+                return {
+                    "agent_id": self.agent_id,
+                    "agent_name": self.agent_name,
+                    "status": "failed",
+                    "duration_ms": duration_ms,
+                    "summary": "RAG evidence retrieval failed: Vector store dependency (ChromaDB/gRPC) is unavailable.",
+                    "data": {"citations": [], "citations_count": 0},
+                    "error": "ChromaDB/gRPC dependency unavailable",
+                }
             records = engine.search(claim=claim, top_k=top_k, min_score=min_score)
             grounded_report = engine.generate_grounded_summary(claim=claim, evidence_records=records)
 

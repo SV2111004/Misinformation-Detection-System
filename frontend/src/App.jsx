@@ -1,5 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
 import "./App.css";
+import "./sna/sna.css";
+import SnaNavCards from "./sna/SnaNavCards";
+import SocialNetworkPage from "./sna/SocialNetworkPage";
+import PropagationAnalysisPage from "./sna/PropagationAnalysisPage";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 
@@ -1444,6 +1448,24 @@ function Phase1ComparisonSection({ comparison, isOpen, onToggle }) {
 ============================================================ */
 
 function App() {
+  const [currentPath, setCurrentPath] = useState(() => {
+    return window.location.pathname || "/";
+  });
+
+  const navigate = (path) => {
+    window.history.pushState({}, "", path);
+    setCurrentPath(path);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setCurrentPath(window.location.pathname || "/");
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
   const [claim, setClaim] = useState("");
   const [comparison, setComparison] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -1818,7 +1840,13 @@ function App() {
       ========================= */}
 
       <header className="navbar">
-        <div className="brand">
+        <div
+          className="brand"
+          onClick={() => navigate("/")}
+          role="button"
+          tabIndex={0}
+          style={{ cursor: "pointer" }}
+        >
           <div className="brand-mark">M</div>
           <div className="brand-text">
             <h2>MisinformationAI</h2>
@@ -1832,7 +1860,15 @@ function App() {
         </div>
       </header>
 
-      <main>
+      {/* =========================
+          SEPARATE SNA PAGES ROUTING
+      ========================= */}
+      {currentPath === "/social-network" ? (
+        <SocialNetworkPage onBack={() => navigate("/")} />
+      ) : currentPath === "/propagation-analysis" ? (
+        <PropagationAnalysisPage onBack={() => navigate("/")} />
+      ) : (
+        <main>
         {/* =========================
             HERO
         ========================= */}
@@ -1950,6 +1986,11 @@ function App() {
             </div>
           )}
         </section>
+
+        {/* =========================
+            SOCIAL NETWORK ANALYSIS (SNA) 4 NAVIGATION CARDS
+        ========================= */}
+        <SnaNavCards onNavigate={navigate} />
 
         {/* ============================================================
             RESULT SCREEN HIERARCHY
@@ -2188,6 +2229,7 @@ function App() {
           </div>
         </section>
       </main>
+      )}
 
       {/* =========================
           FOOTER
