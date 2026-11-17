@@ -186,9 +186,9 @@ class EvidenceRetriever:
             self.exclusion_reasons[k] = 0
 
         split_files = [
-            ("train", "train_evidence.jsonl"),
-            ("val", "val_evidence.jsonl"),
-            ("test", "test_evidence.jsonl"),
+            ("train", "train_socioeconomic.jsonl" if (self.processed_dir / "train_socioeconomic.jsonl").exists() else "train_evidence.jsonl"),
+            ("val", "val_socioeconomic.jsonl" if (self.processed_dir / "val_socioeconomic.jsonl").exists() else "val_evidence.jsonl"),
+            ("test", "test_socioeconomic.jsonl" if (self.processed_dir / "test_socioeconomic.jsonl").exists() else "test_evidence.jsonl"),
         ]
 
         seen_ids: Set[str] = set()

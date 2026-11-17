@@ -1,6 +1,36 @@
 export const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 
+export const TARGET_DOMAIN = "Socio-Economic & Domestic Public Welfare Policy";
+export const DOMAIN_CLASSES_3 = ["Misleading", "Half-True", "Factual"];
+
 export const LABEL_INFO = {
+  // Socio-Economic 3-Class Approved Veracity Labels
+  misleading: {
+    title: "Misleading",
+    description: "Socio-Economic domain benchmark classification (Substantively False / Fabricated)",
+    level: 2,
+    color: "#dc2626",
+    bg: "#fef2f2",
+    border: "#fecaca",
+  },
+  "half-true": {
+    title: "Half-True",
+    description: "Socio-Economic domain benchmark classification (Partially Accurate with Omitted Context)",
+    level: 4,
+    color: "#d97706",
+    bg: "#fffbeb",
+    border: "#fde68a",
+  },
+  factual: {
+    title: "Factual",
+    description: "Socio-Economic domain benchmark classification (Substantially Accurate & Corroborated)",
+    level: 6,
+    color: "#16a34a",
+    bg: "#f0fdf4",
+    border: "#bbf7d0",
+  },
+
+  // LIAR 6-Class Benchmark Veracity Labels
   "pants-fire": {
     title: "Pants on Fire",
     description: "LIAR dataset benchmark classification (Blatantly False)",
@@ -25,14 +55,6 @@ export const LABEL_INFO = {
     bg: "#fffbeb",
     border: "#fde68a",
   },
-  "half-true": {
-    title: "Half True",
-    description: "LIAR dataset benchmark classification (Partially Accurate)",
-    level: 4,
-    color: "#d97706",
-    bg: "#fffbeb",
-    border: "#fde68a",
-  },
   "mostly-true": {
     title: "Mostly True",
     description: "LIAR dataset benchmark classification (Substantially Accurate)",
@@ -52,17 +74,25 @@ export const LABEL_INFO = {
 };
 
 export const EXAMPLES = [
-  "The state unemployment rate dropped below 5 percent following new manufacturing investments.",
-  "Federal healthcare spending increased by 20 percent under the recent budget bill.",
-  "The proposed tax reform will eliminate deductions for middle-income households.",
-  "BREAKING: First NFL Team Declares Bankruptcy Over Kneeling Thugs",
-  "Clean energy subsidies created thousands of domestic solar and wind manufacturing jobs.",
+  "Under the Affordable Care Act, the national uninsured rate dropped below 9 percent while hospital uncompensated care costs declined significantly.",
+  "The state unemployment rate dropped below 4.5 percent following new manufacturing investments and statewide workforce development initiatives.",
+  "The proposed federal tax reform will eliminate standard deductions and raise effective tax rates on middle-income working families.",
+  "State budget appropriations for public K-12 education were reduced by over $400 million, lowering per-pupil classroom spending.",
+  "Over 70 percent of Supplemental Nutrition Assistance Program (SNAP) benefits are distributed to households with children, seniors, or disabled individuals.",
+  "The expanded Child Tax Credit reduced nationwide child poverty by roughly 50 percent during its first full year of implementation.",
+  "The federal minimum wage adjusted for inflation is worth approximately 20 percent less than it was forty years ago.",
+  "Medicare and Medicaid expenditures currently account for nearly half of all mandatory federal budget outlays.",
 ];
 
 export function formatLabel(label) {
   if (!label) return "Unknown";
-  if (label === "pants-fire") return "Pants on Fire";
-  return label
+  const clean = String(label).trim();
+  const lower = clean.toLowerCase();
+  if (lower === "pants-fire") return "Pants on Fire";
+  if (lower === "misleading") return "Misleading";
+  if (lower === "half-true") return "Half-True";
+  if (lower === "factual") return "Factual";
+  return clean
     .split("-")
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(" ");
@@ -100,10 +130,22 @@ export function formatDateTime(isoString) {
 }
 
 export function getLabelInfo(label) {
+  if (!label) {
+    return {
+      title: "Unknown",
+      description: "Unspecified classification",
+      level: 0,
+      color: "#64748b",
+      bg: "#f1f5f9",
+      border: "#e2e8f0",
+    };
+  }
+  const clean = String(label).trim().toLowerCase();
   return (
+    LABEL_INFO[clean] ||
     LABEL_INFO[label] || {
       title: formatLabel(label),
-      description: "LIAR six-class classification",
+      description: "Classification",
       level: 0,
       color: "#64748b",
       bg: "#f1f5f9",

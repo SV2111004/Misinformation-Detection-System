@@ -6,8 +6,7 @@ export default function Navbar({ currentPath, onNavigate, isBackendOnline = true
   const navItems = [
     { path: "/", label: "Dashboard", badge: null },
     { path: "/claim-analysis", label: "Claim Classifier", badge: "DistilBERT" },
-    { path: "/model-comparison", label: "Model Comparison", badge: "Dual" },
-    { path: "/evidence", label: "Evidence & RAG", badge: "10.1k" },
+    { path: "/evidence", label: "Evidence & RAG", badge: "ChromaDB" },
     { path: "/agentic-analysis", label: "Multi-Agent Workflow", badge: "5 Agents" },
     { path: "/influence-analysis", label: "Social Influence", badge: "FakeNewsNet" },
     { path: "/social-network", label: "Propagation Graph", badge: "SNA" },

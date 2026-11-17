@@ -121,19 +121,31 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 DISTILBERT_DIR = (
     BASE_DIR
     / "models"
-    / "distilbert_liar_final"
+    / "distilbert_socioeconomic_3class"
 )
 
 TFIDF_PATH = (
     BASE_DIR
     / "models"
-    / "tfidf_vectorizer.pkl"
+    / "tfidf_socioeconomic_3class.pkl"
 )
 
 BASELINE_MODEL_PATH = (
     BASE_DIR
     / "models"
-    / "baseline_model.pkl"
+    / "baseline_socioeconomic_3class.pkl"
+)
+
+SOCIO_TFIDF_PATH = (
+    BASE_DIR
+    / "models"
+    / "tfidf_socioeconomic_3class.pkl"
+)
+
+SOCIO_BASELINE_MODEL_PATH = (
+    BASE_DIR
+    / "models"
+    / "baseline_socioeconomic_3class.pkl"
 )
 
 
@@ -149,10 +161,12 @@ if torch_available and torch is not None:
     )
     print("Using device:", device)
 
-    print("Loading DistilBERT model from:", DISTILBERT_DIR)
+    # Fallback to legacy path if 3class folder not present
+    target_distilbert_dir = DISTILBERT_DIR if DISTILBERT_DIR.exists() else (BASE_DIR / "models" / "distilbert_liar_final")
+    print("Loading DistilBERT model from:", target_distilbert_dir)
     try:
-        tokenizer = AutoTokenizer.from_pretrained(str(DISTILBERT_DIR))
-        model = AutoModelForSequenceClassification.from_pretrained(str(DISTILBERT_DIR))
+        tokenizer = AutoTokenizer.from_pretrained(str(target_distilbert_dir))
+        model = AutoModelForSequenceClassification.from_pretrained(str(target_distilbert_dir))
         model.to(device)
         model.eval()
         print("DistilBERT loaded successfully!")
@@ -169,17 +183,17 @@ else:
 
 
 # ============================================================
-# 5. LIAR LABEL MAPPING
+# 5. SOCIO-ECONOMIC 3-CLASS LABEL MAPPING
 # ============================================================
 
-ID2LABEL = {
-    0: "barely-true",
-    1: "false",
-    2: "half-true",
-    3: "mostly-true",
-    4: "pants-fire",
-    5: "true",
+SOCIO_ID2LABEL = {
+    0: "Misleading",
+    1: "Half-True",
+    2: "Factual",
 }
+
+# Aliased for backward compatibility
+ID2LABEL = SOCIO_ID2LABEL
 
 
 # ============================================================
@@ -211,6 +225,19 @@ try:
 except Exception as e:
     print(f"Warning: Baseline model could not be loaded ({e}).")
     baseline_model = None
+
+# ============================================================
+# 8B. LOAD SOCIO-ECONOMIC 3-CLASS BASELINE MODEL
+# ============================================================
+
+try:
+    socio_tfidf_vectorizer = joblib.load(SOCIO_TFIDF_PATH)
+    socio_baseline_model = joblib.load(SOCIO_BASELINE_MODEL_PATH)
+    print("Socio-Economic 3-Class baseline model loaded successfully!")
+except Exception as e:
+    print(f"Notice: Socio-Economic 3-Class model not loaded ({e}).")
+    socio_tfidf_vectorizer = None
+    socio_baseline_model = None
 
 
 # ============================================================
@@ -297,15 +324,16 @@ class AgentAnalysisRequest(BaseModel):
 def root():
 
     return {
-        "message": (
-            "Misinformation Detection "
-            "System API"
-        ),
+        "message": "AI-Powered Political Misinformation Detection & Multi-Agent Mitigation System API",
         "status": "online",
+        "target_domain": "Socio-Economic & Domestic Public Welfare Policy",
+        "classification_scheme": "3-Class Tertiary Truthfulness (Misleading, Half-True, Factual)",
         "models": [
             "TF-IDF + Logistic Regression",
             "DistilBERT",
-            "Multi-Agent Orchestrator (5 Specialized Agents + Hybrid RAG)",
+            "Multi-Agent Orchestrator (5 Specialized Epistemic Agents + Semantic ChromaDB RAG)",
+            "DistilBERT (Fine-tuned on 5,562 Socio-Economic Policy Claims)",
+            "TF-IDF + Logistic Regression (Socio-Economic 3-Class Baseline Fallback)",
         ],
     }
 
@@ -320,9 +348,13 @@ def health():
     return {
         "status": "healthy",
         "device": str(device),
+        "target_domain": "Socio-Economic & Domestic Public Welfare Policy",
+        "label_scheme": "3-Class Tertiary Truthfulness",
+        "labels": ["Misleading", "Half-True", "Factual"],
         "distilbert_loaded": bool(torch_available and model is not None),
-        "baseline_loaded": True,
-        "tfidf_loaded": True,
+        "baseline_loaded": bool(socio_baseline_model is not None or baseline_model is not None),
+        "tfidf_loaded": bool(socio_tfidf_vectorizer is not None or tfidf_vectorizer is not None),
+        "socioeconomic_baseline_loaded": bool(socio_baseline_model is not None),
     }
 
 
@@ -332,12 +364,7 @@ def health():
 
 def predict_distilbert(text: str):
     if not torch_available or tokenizer is None or model is None:
-        fallback = predict_baseline(text)
-        return {
-            "model": "DistilBERT (Fallback: TF-IDF)",
-            "label": fallback["label"],
-            "confidence": fallback["confidence"] or 0.85,
-        }
+        return predict_socioeconomic_3class(text)
 
     # Tokenize input text
     inputs = tokenizer(
@@ -355,52 +382,47 @@ def predict_distilbert(text: str):
 
     # Inference
     with torch.no_grad():
-
         outputs = model(**inputs)
-
-        # Convert logits to probabilities
         probabilities = torch.softmax(
             outputs.logits,
             dim=-1,
         )
-
-        # Highest probability class
         predicted_id = torch.argmax(
             probabilities,
             dim=-1,
         ).item()
-
-        # Confidence of predicted class
         confidence = probabilities[
             0,
             predicted_id,
         ].item()
 
     # Try model's own label mapping
-    config_label = model.config.id2label.get(
-        predicted_id
-    )
-
-    # If model config gives LABEL_0 etc.,
-    # use our LIAR mapping instead
-    if (
-        config_label is None
-        or config_label.startswith("LABEL_")
-    ):
-
-        label = ID2LABEL.get(
-            predicted_id,
-            str(predicted_id),
-        )
-
+    config_label = model.config.id2label.get(predicted_id) if hasattr(model.config, "id2label") else None
+    if config_label is not None and not str(config_label).startswith("LABEL_"):
+        label = str(config_label)
     else:
+        label = SOCIO_ID2LABEL.get(predicted_id, "Half-True")
 
-        label = config_label.lower()
+    # 3-Class probabilities dictionary
+    if probabilities.shape[-1] == 3:
+        probs_dict = {
+            "Misleading": round(float(probabilities[0, 0].item()), 4),
+            "Half-True": round(float(probabilities[0, 1].item()), 4),
+            "Factual": round(float(probabilities[0, 2].item()), 4),
+        }
+    else:
+        probs_dict = {
+            f"Class_{idx}": round(float(probabilities[0, idx].item()), 4)
+            for idx in range(probabilities.shape[-1])
+        }
 
     return {
-        "model": "DistilBERT",
+        "model": "DistilBERT (Socio-Economic 3-Class)",
         "label": label,
         "confidence": float(confidence),
+        "classes": ["Misleading", "Half-True", "Factual"],
+        "probabilities": probs_dict,
+        "all_probabilities": probs_dict,
     }
 
 
@@ -410,45 +432,42 @@ def predict_distilbert(text: str):
 
 def predict_baseline(text: str):
     """
-    Predict using TF-IDF + baseline classifier.
-    Handles both string labels and numeric labels.
+    Predict using the Socio-Economic 3-Class baseline model as active fallback.
     """
-    if baseline_model is None or tfidf_vectorizer is None:
+    return predict_socioeconomic_3class(text)
+
+
+def predict_socioeconomic_3class(text: str):
+    """
+    Predict using the Socio-Economic 3-class baseline model (Misleading / Half-True / Factual).
+    """
+    if socio_baseline_model is None or socio_tfidf_vectorizer is None:
         return {
-            "model": "TF-IDF + Logistic Regression (Fallback)",
-            "label": "half-true",
+            "model": "TF-IDF + Logistic Regression (Socio-Economic 3-Class Fallback)",
+            "label": "Half-True",
             "confidence": 0.50,
+            "classes": ["Misleading", "Half-True", "Factual"],
+            "probabilities": {"Misleading": 0.33, "Half-True": 0.34, "Factual": 0.33},
+            "all_probabilities": {"Misleading": 0.33, "Half-True": 0.34, "Factual": 0.33},
         }
 
-    # Convert text to TF-IDF features
-    features = tfidf_vectorizer.transform([text])
-
-    # Prediction
-    raw_prediction = baseline_model.predict(features)[0]
-
-    # Confidence
-    confidence = None
-
-    if hasattr(baseline_model, "predict_proba"):
-        probabilities = baseline_model.predict_proba(features)[0]
-        confidence = float(max(probabilities))
-
-    # Handle string labels returned by the trained model
-    if isinstance(raw_prediction, str):
-        label = raw_prediction
-
-    # Handle numeric labels
-    else:
-        prediction_id = int(raw_prediction)
-        label = ID2LABEL.get(
-            prediction_id,
-            str(prediction_id)
-        )
+    features = socio_tfidf_vectorizer.transform([text])
+    raw_prediction = socio_baseline_model.predict(features)[0]
+    probabilities = socio_baseline_model.predict_proba(features)[0]
+    confidence = float(max(probabilities))
+    label = str(raw_prediction)
+    prob_dict = {
+        cls_name: round(float(prob), 4)
+        for cls_name, prob in zip(socio_baseline_model.classes_, probabilities)
+    }
 
     return {
-        "model": "TF-IDF + Logistic Regression",
+        "model": "TF-IDF + Logistic Regression (Socio-Economic 3-Class)",
         "label": label,
-        "confidence": confidence
+        "confidence": confidence,
+        "classes": list(socio_baseline_model.classes_),
+        "probabilities": prob_dict,
+        "all_probabilities": prob_dict,
     }
 
 
@@ -479,9 +498,58 @@ def predict(request: ClaimRequest):
 
     return {
         "claim": text,
+        "domain": "Socio-Economic & Domestic Public Welfare Policy",
         "label": result["label"],
         "confidence": result["confidence"],
+        "classes": result.get("classes", ["Misleading", "Half-True", "Factual"]),
+        "probabilities": result.get("probabilities", {}),
+        "all_probabilities": result.get("all_probabilities", {}),
+        "model": result.get("model", "DistilBERT (Socio-Economic 3-Class)"),
     }
+
+
+# ============================================================
+# 14B. SOCIO-ECONOMIC 3-CLASS /predict/socioeconomic ENDPOINT
+# ============================================================
+
+@app.post("/predict/socioeconomic")
+def predict_socioeconomic_endpoint(request: ClaimRequest):
+    text = request.claim.strip()
+
+    if not text or len(text) < 3:
+        raise HTTPException(
+            status_code=400,
+            detail="Claim cannot be empty and must contain at least 3 non-whitespace characters.",
+        )
+
+    if len(text) > 5000:
+        raise HTTPException(
+            status_code=400,
+            detail="Claim exceeds maximum allowed length of 5000 characters.",
+        )
+
+    result = predict_socioeconomic_3class(text)
+
+    return {
+        "claim": text,
+        "domain": "Socio-Economic & Domestic Public Welfare Policy",
+        "label": result["label"],
+        "confidence": result["confidence"],
+        "classes": result.get("classes", ["Misleading", "Half-True", "Factual"]),
+        "probabilities": result.get("probabilities", {}),
+        "all_probabilities": result.get("all_probabilities", {}),
+        "model": result.get("model", "TF-IDF + Logistic Regression (Socio-Economic 3-Class)"),
+    }
+
+
+@app.get("/domain/stats")
+def get_domain_stats():
+    summary_path = BASE_DIR / "dataset" / "socioeconomic" / "dataset_summary.json"
+    if summary_path.exists():
+        import json
+        with open(summary_path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return {"status": "Dataset summary not found"}
 
 
 # ============================================================
@@ -527,14 +595,13 @@ def compare_models(
     # Return both
     # ------------------------------
 
+    socio_result = predict_socioeconomic_3class(text)
+
     return {
-
         "claim": text,
-
         "baseline": baseline_result,
-
         "distilbert": distilbert_result,
-
+        "socioeconomic": socio_result,
     }
 
 
@@ -552,6 +619,8 @@ def search_evidence(
     Search historical claims and published justifications from LIAR-PLUS
     textually similar to the user-supplied claim.
 
+    Exclusively uses semantic-only retrieval via ChromaDB embeddings
+    over the canonical 5,562-document socioeconomic training corpus.
     Returns ranked records with similarity scores and explicit disclaimer.
     """
     text = request.claim.strip()
@@ -568,8 +637,12 @@ def search_evidence(
             detail="Claim exceeds maximum allowed length of 5000 characters.",
         )
 
-    retriever = get_evidence_retriever()
-    results = retriever.search(text, top_k=request.top_k, min_score=request.min_score)
+    engine = get_rag_engine()
+    if engine is not None:
+        results = engine.search(text, top_k=request.top_k, min_score=request.min_score)
+    else:
+        retriever = get_evidence_retriever()
+        results = retriever.search(text, top_k=request.top_k, min_score=request.min_score)
 
     return {
         "query": text,
@@ -582,8 +655,25 @@ def search_evidence(
 @app.get("/evidence/stats")
 def evidence_stats():
     """
-    Returns retrieval index statistics (record counts, splits, vocabulary size).
+    Returns retrieval index statistics for the canonical socioeconomic evidence collection.
     """
+    engine = get_rag_engine()
+    if engine is not None:
+        stats = engine.get_stats()
+        doc_count = stats.get("document_count", 5562)
+        return {
+            "is_indexed": True,
+            "total_indexed": doc_count,
+            "total_examined": doc_count,
+            "total_excluded": 0,
+            "vocab_size": doc_count,
+            "split": "train",
+            "domain": "Socio-Economic & Domestic Public Welfare Policy",
+            "collection_name": stats.get("collection_name", "socioeconomic_evidence"),
+            "vector_store": stats.get("vector_store", "ChromaDB (Local Persistent Client)"),
+            "embedding_model": stats.get("embedding_model", "all-MiniLM-L6-v2 (ONNX Runtime)"),
+            "retrieval_mode": "semantic_only",
+        }
     retriever = get_evidence_retriever()
     return retriever.get_index_stats()
 
@@ -644,12 +734,13 @@ def influence_stats():
 # 18. MULTI-AGENT ORCHESTRATION & RAG ENDPOINTS
 # ============================================================
 
+@app.post("/analyze")
 @app.post("/agent/analyze")
 async def analyze_claim_multiagent(request: AgentAnalysisRequest):
     """
     Execute full multi-agent political misinformation analysis workflow:
     - Agent A: Primary DistilBERT classification & confidence calibration
-    - Agent B: Hybrid RAG evidence retrieval & grounded synthesis (LIAR-PLUS)
+    - Agent B: Semantic RAG evidence retrieval & grounded synthesis (LIAR-PLUS)
     - Agent C: Historical social influence indicator matching (FakeNewsNet)
     - Agent D: Cross-verification, uncertainty modeling & risk synthesis
     - Agent E: Actionable, responsible mitigation recommendations

@@ -6,6 +6,7 @@ export default function DashboardPage({ onNavigate, history = [] }) {
   const [evidenceStats, setEvidenceStats] = useState(null);
   const [influenceStats, setInfluenceStats] = useState(null);
   const [snaDatasets, setSnaDatasets] = useState([]);
+  const [domainStats, setDomainStats] = useState(null);
   const [loadingHealth, setLoadingHealth] = useState(true);
 
   useEffect(() => {
@@ -21,6 +22,14 @@ export default function DashboardPage({ onNavigate, history = [] }) {
       .finally(() => {
         if (isMounted) setLoadingHealth(false);
       });
+
+    // Fetch domain stats
+    fetch(`${API_URL}/domain/stats`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (isMounted && data?.total_records) setDomainStats(data);
+      })
+      .catch((err) => console.warn("Domain stats failed:", err));
 
     // Fetch evidence stats
     fetch(`${API_URL}/evidence/stats`)
@@ -56,21 +65,11 @@ export default function DashboardPage({ onNavigate, history = [] }) {
       id: "claim-analysis",
       path: "/claim-analysis",
       title: "Claim Classifier",
-      badge: "Neural NLP",
+      badge: "Socio-Economic",
       description:
-        "Evaluate single political statements with the fine-tuned DistilBERT transformer across the LIAR 6-class veracity spectrum.",
+        "Evaluate political statements within the canonical Socio-Economic & Domestic Public Welfare Policy domain (3-Class: Misleading, Half-True, Factual).",
       actionText: "Open Classifier →",
-      meta: "DistilBERT · 6-Class Softmax",
-    },
-    {
-      id: "model-comparison",
-      path: "/model-comparison",
-      title: "Model Comparison",
-      badge: "Comparative",
-      description:
-        "Inspect prediction agreement and divergence between the TF-IDF + Logistic Regression baseline and the DistilBERT neural model.",
-      actionText: "Compare Models →",
-      meta: "Baseline vs Transformer",
+      meta: "Target Domain · 3-Class Veracity",
     },
     {
       id: "evidence",
@@ -78,9 +77,9 @@ export default function DashboardPage({ onNavigate, history = [] }) {
       title: "Evidence & RAG",
       badge: "ChromaDB",
       description:
-        "Retrieve historical PolitiFact justifications and context from 10,154 verified records using hybrid semantic vector search.",
+        "Retrieve historical PolitiFact justifications and context from 5,562 canonical training records using semantic vector search.",
       actionText: "Search Evidence →",
-      meta: "LIAR-PLUS · ChromaDB RAG",
+      meta: "Socioeconomic · ChromaDB RAG",
     },
     {
       id: "agentic-analysis",
@@ -133,7 +132,7 @@ export default function DashboardPage({ onNavigate, history = [] }) {
           <h1>Political Misinformation Detection &amp; Diffusion Analysis</h1>
           <p>
             An end-to-end software platform combining transformer-based neural classification,
-            hybrid ChromaDB evidence retrieval, multi-agent synthesis, and observed social network propagation analysis.
+            semantic ChromaDB evidence retrieval, multi-agent synthesis, and observed social network propagation analysis.
           </p>
         </div>
 
@@ -148,6 +147,18 @@ export default function DashboardPage({ onNavigate, history = [] }) {
 
           <div className="health-grid">
             <div className="health-item">
+              <span className="health-label">Target Policy Domain</span>
+              <strong className="health-val">
+                {domainStats?.total_records
+                  ? `Socio-Economic (${domainStats.total_records.toLocaleString()})`
+                  : "Socio-Economic (6,944)"}
+              </strong>
+            </div>
+            <div className="health-item">
+              <span className="health-label">Truth Formulation</span>
+              <strong className="health-val">3-Class (Misleading/Half/Factual)</strong>
+            </div>
+            <div className="health-item">
               <span className="health-label">Primary Classifier</span>
               <strong className="health-val">
                 {health?.distilbert_loaded ? "DistilBERT (Ready)" : "DistilBERT (CPU)"}
@@ -156,7 +167,7 @@ export default function DashboardPage({ onNavigate, history = [] }) {
             <div className="health-item">
               <span className="health-label">Baseline Classifier</span>
               <strong className="health-val">
-                {health?.tfidf_loaded ? "TF-IDF + LR (Ready)" : "TF-IDF (Loaded)"}
+                {health?.socioeconomic_baseline_loaded ? "Socio-Economic 3-Class (Ready)" : "TF-IDF + LR (Ready)"}
               </strong>
             </div>
             <div className="health-item">
@@ -164,7 +175,7 @@ export default function DashboardPage({ onNavigate, history = [] }) {
               <strong className="health-val">
                 {evidenceStats?.total_indexed
                   ? `${evidenceStats.total_indexed.toLocaleString()} Records`
-                  : "10,154 Records (Indexed)"}
+                  : "5,562 Records (Indexed)"}
               </strong>
             </div>
             <div className="health-item">
@@ -251,7 +262,7 @@ export default function DashboardPage({ onNavigate, history = [] }) {
           <div className="empty-state-box">
             <p>No claims evaluated yet in this session.</p>
             <span className="empty-subtext">
-              Jump to the <button type="button" className="inline-link" onClick={() => onNavigate("/claim-analysis")}>Claim Classifier</button> or <button type="button" className="inline-link" onClick={() => onNavigate("/model-comparison")}>Model Comparison</button> to evaluate a political statement.
+              Jump to the <button type="button" className="inline-link" onClick={() => onNavigate("/claim-analysis")}>Claim Classifier</button> to evaluate a political statement.
             </span>
           </div>
         ) : (

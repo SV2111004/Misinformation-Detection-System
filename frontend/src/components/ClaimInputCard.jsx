@@ -73,7 +73,7 @@ export default function ClaimInputCard({
 
       {showExamples && (
         <div className="claim-examples-container">
-          <span className="examples-header">Illustrative Benchmark Claims:</span>
+          <span className="examples-header">Illustrative Benchmark Claims (Socio-Economic &amp; Domestic Welfare Policy):</span>
           <div className="examples-pill-list">
             {EXAMPLES.map((ex, idx) => (
               <button
@@ -82,6 +82,7 @@ export default function ClaimInputCard({
                 className="example-pill-btn"
                 onClick={() => onClaimChange(ex)}
                 disabled={loading}
+                title={ex}
               >
                 &ldquo;{ex.length > 70 ? `${ex.slice(0, 70)}...` : ex}&rdquo;
               </button>

@@ -24,7 +24,7 @@ def run_single_ic(
     p: float,
     blocked_nodes: Set[str],
     rng: random.Random,
-) -> Tuple[Set[str], List[int]]:
+) -> tuple[Set[str], List[int]]:
     """
     Executes one Independent Cascade simulation from seed_node.
     Nodes in blocked_nodes cannot activate their downstream neighbors.

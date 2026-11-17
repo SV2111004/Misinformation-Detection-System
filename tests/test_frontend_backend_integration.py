@@ -100,8 +100,9 @@ def test_evidence_failure_does_not_break_prediction():
     assert compare_res.status_code == 200
     comp_data = compare_res.json()
     assert "baseline" in comp_data and "distilbert" in comp_data
-    assert comp_data["baseline"]["label"] in {"pants-fire", "false", "barely-true", "half-true", "mostly-true", "true"}
-    assert comp_data["distilbert"]["label"] in {"pants-fire", "false", "barely-true", "half-true", "mostly-true", "true"}
+    valid_labels = {"pants-fire", "false", "barely-true", "half-true", "mostly-true", "true", "Misleading", "Half-True", "Factual", "misleading", "factual"}
+    assert comp_data["baseline"]["label"] in valid_labels
+    assert comp_data["distilbert"]["label"] in valid_labels
 
 
 def test_claim_validation_parity():

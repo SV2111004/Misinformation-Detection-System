@@ -1,12 +1,10 @@
 """
 RAG Engine for Historical Political Claim & Evidence Retrieval.
 
-Combines:
+Exclusively uses:
 1. Dense Semantic Retrieval via ChromaDB persistent vector index (using all-MiniLM-L6-v2 embeddings)
-2. Lexical Retrieval via TF-IDF cosine similarity (reusing EvidenceRetriever)
-3. Hybrid Score Fusion (weighted combination of semantic + lexical scores)
-4. Structured Citation Preservation with upstream TSV row-shift integrity checks
-5. Grounded Evidence Summary generation (LLM-based if configured, with rigorous deterministic fallback)
+2. Structured Citation Preservation with upstream TSV row-shift integrity checks
+3. Grounded Evidence Summary generation (LLM-based if configured, with rigorous deterministic fallback)
 """
 
 import json
@@ -21,23 +19,19 @@ from chromadb.config import Settings
 try:
     from evidence_retriever import (
         DISCLAIMER_TEXT,
-        EvidenceRetriever,
         check_claim_justification_alignment,
-        get_evidence_retriever,
     )
 except ImportError:
     from backend.evidence_retriever import (
         DISCLAIMER_TEXT,
-        EvidenceRetriever,
         check_claim_justification_alignment,
-        get_evidence_retriever,
     )
 
 logger = logging.getLogger(__name__)
 
 RAG_DISCLAIMER_TEXT = (
-    "These historical citations and grounded summaries are retrieved from the LIAR-PLUS benchmark. "
-    "Semantic similarity and lexical overlap reflect proximity to historical PolitiFact fact-checks, "
+    "These historical citations and grounded summaries are retrieved from the PolitiFact socioeconomic benchmark (LIAR-PLUS). "
+    "Semantic similarity reflects proximity to historical PolitiFact fact-checks, "
     "not independent real-time verification of the submitted query claim. "
     "Historical dataset labels are strictly benchmark attributes of past claims and do not replace "
     "the primary classifier prediction. Citations should be reviewed in their original context."
@@ -46,16 +40,15 @@ RAG_DISCLAIMER_TEXT = (
 DEFAULT_PERSIST_DIR = (
     Path(__file__).resolve().parent.parent
     / "dataset"
-    / "politifact_evidence"
+    / "socioeconomic"
     / "chroma_db"
 )
-DEFAULT_COLLECTION_NAME = "liar_plus_evidence"
+DEFAULT_COLLECTION_NAME = "socioeconomic_evidence"
 DEFAULT_PROCESSED_FILE = (
     Path(__file__).resolve().parent.parent
     / "dataset"
-    / "politifact_evidence"
-    / "processed"
-    / "train_evidence.jsonl"
+    / "socioeconomic"
+    / "train_socioeconomic.jsonl"
 )
 
 
@@ -79,7 +72,7 @@ def _load_env_credentials():
 
 class RAGEngine:
     """
-    Persistent RAG Engine providing hybrid semantic + lexical retrieval over LIAR-PLUS.
+    Persistent RAG Engine providing semantic-only retrieval over ChromaDB embeddings.
     """
 
     def __init__(
@@ -87,24 +80,21 @@ class RAGEngine:
         persist_dir: Optional[Path] = None,
         collection_name: str = DEFAULT_COLLECTION_NAME,
         processed_file: Optional[Path] = None,
-        lexical_retriever: Optional[EvidenceRetriever] = None,
-        alpha: float = 0.5,
+        lexical_retriever: Optional[Any] = None,
+        alpha: Optional[float] = None,
     ):
         """
-        Initialize the RAG engine.
+        Initialize the semantic RAG engine.
 
         :param persist_dir: Path to directory for persistent ChromaDB storage.
         :param collection_name: Name of ChromaDB collection.
         :param processed_file: Path to train_evidence.jsonl for ingestion.
-        :param lexical_retriever: Optional pre-initialized EvidenceRetriever.
-        :param alpha: Weight for semantic similarity in hybrid fusion (0.0 = pure lexical, 1.0 = pure semantic).
+        :param lexical_retriever: Deprecated, accepted for backward signature compatibility.
+        :param alpha: Deprecated, accepted for backward signature compatibility.
         """
         self.persist_dir = Path(persist_dir) if persist_dir else DEFAULT_PERSIST_DIR
         self.collection_name = collection_name
         self.processed_file = Path(processed_file) if processed_file else DEFAULT_PROCESSED_FILE
-        self.alpha = max(0.0, min(1.0, alpha))
-
-        self.lexical_retriever = lexical_retriever or get_evidence_retriever()
         self.client: Optional[chromadb.PersistentClient] = None
         self.collection = None
         self._is_ready = False
@@ -269,139 +259,100 @@ class RAGEngine:
         claim: str,
         top_k: int = 5,
         min_score: float = 0.05,
-        alpha: Optional[float] = None,
+        **kwargs,
     ) -> List[Dict[str, Any]]:
         """
-        Hybrid retrieval combining dense semantic search (ChromaDB) with lexical TF-IDF.
+        Semantic-only retrieval using dense ChromaDB embeddings (all-MiniLM-L6-v2).
 
         :param claim: Submitted claim query.
         :param top_k: Number of ranked evidence records to return (1-20).
-        :param min_score: Minimum hybrid similarity score threshold.
-        :param alpha: Weight for semantic vs lexical (defaults to instance alpha).
-        :return: List of ranked match dicts sorted by hybrid similarity score descending.
+        :param min_score: Minimum semantic similarity score threshold.
+        :return: List of ranked match dicts sorted by semantic similarity score descending.
         """
         text = claim.strip()
         if not text:
             raise ValueError("Claim text cannot be empty or whitespace.")
 
         top_k = max(1, min(20, top_k))
-        cur_alpha = self.alpha if alpha is None else max(0.0, min(1.0, alpha))
 
         if not self._is_ready:
             self.load_or_build()
 
-        # Candidate pool size for hybrid fusion
-        candidate_k = min(max(top_k * 4, 20), 50)
-
-        # 1. Dense Semantic Retrieval
-        semantic_matches: Dict[str, Dict[str, Any]] = {}
-        total_docs = self.collection.count()
-
-        if total_docs > 0:
-            query_k = min(candidate_k, total_docs)
-            try:
-                chroma_results = self.collection.query(
-                    query_texts=[text],
-                    n_results=query_k,
-                    include=["documents", "metadatas", "distances"],
-                )
-                if chroma_results and chroma_results.get("ids") and chroma_results["ids"][0]:
-                    result_ids = chroma_results["ids"][0]
-                    result_metas = chroma_results["metadatas"][0] if chroma_results.get("metadatas") else []
-                    result_dists = chroma_results["distances"][0] if chroma_results.get("distances") else []
-                    result_docs = chroma_results["documents"][0] if chroma_results.get("documents") else []
-
-                    for i, doc_id in enumerate(result_ids):
-                        dist = result_dists[i] if i < len(result_dists) else 1.0
-                        meta = result_metas[i] if i < len(result_metas) else {}
-                        doc_claim = result_docs[i] if i < len(result_docs) else ""
-
-                        # Convert cosine distance to similarity score in [0.0, 1.0]
-                        # For cosine distance: dist = 1 - cos, so sim = max(0.0, 1.0 - dist)
-                        sem_score = max(0.0, min(1.0, 1.0 - (dist if dist is not None else 1.0)))
-
-                        semantic_matches[doc_id] = {
-                            "statement_id": doc_id,
-                            "claim": meta.get("claim") or doc_claim,
-                            "verdict": meta.get("verdict", "unknown"),
-                            "justification": meta.get("justification", ""),
-                            "speaker": meta.get("speaker", ""),
-                            "speaker_job": meta.get("speaker_job", ""),
-                            "state_info": meta.get("state_info", ""),
-                            "party_affiliation": meta.get("party_affiliation", ""),
-                            "subject": meta.get("subject", ""),
-                            "context": meta.get("context", ""),
-                            "split": meta.get("split", "train"),
-                            "source_dataset": meta.get("source_dataset", "liar-plus"),
-                            "semantic_score": round(float(sem_score), 4),
-                        }
-            except Exception as e:
-                logger.warning(f"ChromaDB semantic search failed: {e}")
-
-        # 2. Lexical TF-IDF Retrieval
-        lexical_matches: Dict[str, Dict[str, Any]] = {}
-        try:
-            tfidf_results = self.lexical_retriever.search(text, top_k=candidate_k, min_score=0.0)
-            for res in tfidf_results:
-                sid = str(res.get("statement_id") or "")
-                if sid:
-                    lexical_matches[sid] = res
-        except Exception as e:
-            logger.warning(f"Lexical TF-IDF retrieval failed: {e}")
-
-        # 3. Hybrid Score Fusion
-        all_candidate_ids: Set[str] = set(semantic_matches.keys()).union(set(lexical_matches.keys()))
-        if not all_candidate_ids:
+        total_docs = self.collection.count() if self.collection else 0
+        if total_docs == 0:
             return []
 
+        # Query candidate pool from ChromaDB using dense semantic embeddings
+        query_k = min(max(top_k * 2, top_k), total_docs)
         ranked_results: List[Dict[str, Any]] = []
 
-        for sid in all_candidate_ids:
-            sem_item = semantic_matches.get(sid)
-            lex_item = lexical_matches.get(sid)
-
-            sem_score = sem_item["semantic_score"] if sem_item else 0.0
-            lex_score = float(lex_item.get("similarity_score") or 0.0) if lex_item else 0.0
-
-            # Linear hybrid fusion
-            hybrid_score = round(cur_alpha * sem_score + (1.0 - cur_alpha) * lex_score, 4)
-
-            if hybrid_score < min_score:
-                continue
-
-            # Merge record fields prioritizing richer metadata
-            base_rec = lex_item or sem_item or {}
-            claim_text = base_rec.get("claim") or ""
-            speaker_text = base_rec.get("speaker") or ""
-            justification_text = base_rec.get("justification") or ""
-
-            # Check upstream TSV row-shift alignment
-            has_context_alignment = check_claim_justification_alignment(
-                claim=claim_text,
-                speaker=speaker_text,
-                justification=justification_text,
+        try:
+            chroma_results = self.collection.query(
+                query_texts=[text],
+                n_results=query_k,
+                include=["documents", "metadatas", "distances"],
             )
+            if chroma_results and chroma_results.get("ids") and chroma_results["ids"][0]:
+                result_ids = chroma_results["ids"][0]
+                result_metas = chroma_results["metadatas"][0] if chroma_results.get("metadatas") else []
+                result_dists = chroma_results["distances"][0] if chroma_results.get("distances") else []
+                result_docs = chroma_results["documents"][0] if chroma_results.get("documents") else []
 
-            ranked_results.append({
-                "statement_id": sid,
-                "claim": claim_text,
-                "verdict": base_rec.get("verdict", "unknown"),
-                "justification": justification_text,
-                "speaker": speaker_text,
-                "speaker_job": base_rec.get("speaker_job", ""),
-                "state_info": base_rec.get("state_info", ""),
-                "party_affiliation": base_rec.get("party_affiliation", ""),
-                "subject": base_rec.get("subject", ""),
-                "context": base_rec.get("context", ""),
-                "split": base_rec.get("split", "train"),
-                "source_dataset": base_rec.get("source_dataset", "liar-plus"),
-                "similarity_score": hybrid_score,
-                "semantic_score": round(sem_score, 4),
-                "lexical_score": round(lex_score, 4),
-                "has_context_alignment": has_context_alignment,
-            })
+                for i, doc_id in enumerate(result_ids):
+                    dist = result_dists[i] if i < len(result_dists) else 1.0
+                    meta = result_metas[i] if i < len(result_metas) else {}
+                    doc_claim = result_docs[i] if i < len(result_docs) else ""
 
-        # Sort descending by hybrid similarity, breaking ties deterministically by statement_id
+                    # Convert cosine distance to semantic similarity score in [0.0, 1.0]
+                    # For cosine distance: dist = 1 - cos, so sim = max(0.0, 1.0 - dist)
+                    sem_score = max(0.0, min(1.0, 1.0 - (dist if dist is not None else 1.0)))
+
+                    if sem_score < min_score or sem_score <= 0.0:
+                        continue
+
+                    claim_text = meta.get("claim") or doc_claim
+                    speaker_text = meta.get("speaker") or ""
+                    justification_text = meta.get("justification") or ""
+
+                    # Check upstream TSV row-shift alignment
+                    has_context_alignment = check_claim_justification_alignment(
+                        claim=claim_text,
+                        speaker=speaker_text,
+                        justification=justification_text,
+                    )
+
+                    has_justification = bool(
+                        meta.get(
+                            "has_justification",
+                            bool(
+                                justification_text.strip()
+                                and "No fact-checker justification" not in justification_text
+                            ),
+                        )
+                    )
+
+                    ranked_results.append({
+                        "statement_id": doc_id,
+                        "claim": claim_text,
+                        "verdict": meta.get("verdict", "unknown"),
+                        "justification": justification_text,
+                        "has_justification": has_justification,
+                        "speaker": speaker_text,
+                        "speaker_job": meta.get("speaker_job", ""),
+                        "state_info": meta.get("state_info", ""),
+                        "party_affiliation": meta.get("party_affiliation", ""),
+                        "subject": meta.get("subject", ""),
+                        "context": meta.get("context", ""),
+                        "split": meta.get("split", "train"),
+                        "source_dataset": meta.get("source_dataset", "liar-plus-socioeconomic"),
+                        "similarity_score": round(float(sem_score), 4),
+                        "semantic_score": round(float(sem_score), 4),
+                        "has_context_alignment": has_context_alignment,
+                    })
+        except Exception as e:
+            logger.warning(f"ChromaDB semantic search failed: {e}")
+
+        # Sort descending by semantic similarity, breaking ties deterministically by statement_id
         ranked_results.sort(
             key=lambda item: (-item["similarity_score"], str(item["statement_id"]))
         )
@@ -499,7 +450,7 @@ class RAGEngine:
         summary_parts = [
             f"Retrieved {len(evidence_records)} relevant historical evidence record(s) from the LIAR-PLUS benchmark.",
             f"The closest historical match is Statement [{top_id}] by {top_speaker} "
-            f"(hybrid similarity: {top_sim:.1%}), which was historically rated '{top_verdict}': \"{top_claim}\".",
+            f"(semantic similarity: {top_sim:.1%}), which was historically rated '{top_verdict}': \"{top_claim}\".",
         ]
 
         if has_conflicts:
@@ -648,10 +599,9 @@ class RAGEngine:
             "persist_dir": str(self.persist_dir),
             "document_count": doc_count,
             "is_persistent": True,
-            "alpha": self.alpha,
+            "retrieval_mode": "semantic_only",
             "vector_store": "ChromaDB (Local Persistent Client)",
             "embedding_model": "all-MiniLM-L6-v2 (ONNX Runtime)",
-            "lexical_index_stats": self.lexical_retriever.get_index_stats(),
         }
 
 

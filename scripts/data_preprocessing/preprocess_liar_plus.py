@@ -30,6 +30,35 @@ def clean_text(val: Optional[str]) -> Optional[str]:
     return s
 
 
+def get_justification_shift(split_name: str, row_idx: int) -> int:
+    """
+    Returns the empirically verified piecewise row shift for LIAR-PLUS justifications.
+    In LIAR-PLUS raw TSVs, scraped justifications suffered discrete displacements
+    due to unhandled missing rows in the upstream crawl.
+    """
+    if split_name == "train":
+        if row_idx < 1280:
+            return 0
+        elif row_idx < 2131:
+            return 12
+        elif row_idx < 2142:
+            return 11
+        elif row_idx < 6128:
+            return 13
+        elif row_idx < 7549:
+            return 21
+        else:
+            return 29
+    elif split_name == "test":
+        if row_idx < 703:
+            return 0
+        elif row_idx < 923:
+            return 11
+        else:
+            return 16
+    return 0
+
+
 def preprocess_liar_plus(
     raw_dir: Optional[Path] = None,
     output_dir: Optional[Path] = None
@@ -66,7 +95,7 @@ def preprocess_liar_plus(
         if not raw_path.exists():
             raise FileNotFoundError(f"Raw LIAR-PLUS file not found: {raw_path}")
 
-        records: List[Dict[str, Any]] = []
+        raw_valid_rows: List[List[str]] = []
         malformed: List[Dict[str, Any]] = []
         seen_ids = set()
         duplicate_ids = 0
@@ -81,49 +110,61 @@ def preprocess_liar_plus(
                         "snippet": " | ".join(row[:4]) if row else ""
                     })
                     continue
+                raw_valid_rows.append(row)
 
-                stmt_id = row[1].strip()
-                if stmt_id in seen_ids:
-                    duplicate_ids += 1
-                seen_ids.add(stmt_id)
+        records: List[Dict[str, Any]] = []
+        for i, row in enumerate(raw_valid_rows):
+            stmt_id = row[1].strip()
+            if stmt_id in seen_ids:
+                duplicate_ids += 1
+            seen_ids.add(stmt_id)
 
-                verdict = row[2].strip()
-                claim = row[3].strip()
-                subject = clean_text(row[4])
-                speaker = clean_text(row[5])
-                speaker_job = clean_text(row[6])
-                state_info = clean_text(row[7])
-                party_affiliation = clean_text(row[8])
+            verdict = row[2].strip()
+            claim = row[3].strip()
+            subject = clean_text(row[4])
+            speaker = clean_text(row[5])
+            speaker_job = clean_text(row[6])
+            state_info = clean_text(row[7])
+            party_affiliation = clean_text(row[8])
 
-                credit_history = {
-                    "barely_true": safe_float(row[9]),
-                    "false": safe_float(row[10]),
-                    "half_true": safe_float(row[11]),
-                    "mostly_true": safe_float(row[12]),
-                    "pants_fire": safe_float(row[13]),
-                }
+            credit_history = {
+                "barely_true": safe_float(row[9]),
+                "false": safe_float(row[10]),
+                "half_true": safe_float(row[11]),
+                "mostly_true": safe_float(row[12]),
+                "pants_fire": safe_float(row[13]),
+            }
 
-                context = clean_text(row[14])
-                justification = clean_text(row[15])
+            context = clean_text(row[14])
 
-                item = {
-                    "statement_id": stmt_id,
-                    "claim": claim,
-                    "verdict": verdict,
-                    "justification": justification,
-                    "has_justification": bool(justification),
-                    "speaker": speaker,
-                    "subject": subject,
-                    "speaker_job": speaker_job,
-                    "state_info": state_info,
-                    "party_affiliation": party_affiliation,
-                    "credit_history": credit_history,
-                    "context": context,
-                    "split": split_name,
-                    "source_dataset": "liar-plus"
-                }
+            # Apply verified piecewise shift to retrieve authentically matching justification
+            shift = get_justification_shift(split_name, i)
+            just_idx = i + shift
+            if 0 <= just_idx < len(raw_valid_rows) and len(raw_valid_rows[just_idx]) > 15:
+                raw_just = raw_valid_rows[just_idx][15]
+            else:
+                raw_just = None
 
-                records.append(item)
+            justification = clean_text(raw_just)
+
+            item = {
+                "statement_id": stmt_id,
+                "claim": claim,
+                "verdict": verdict,
+                "justification": justification,
+                "has_justification": bool(justification),
+                "speaker": speaker,
+                "subject": subject,
+                "speaker_job": speaker_job,
+                "state_info": state_info,
+                "party_affiliation": party_affiliation,
+                "credit_history": credit_history,
+                "context": context,
+                "split": split_name,
+                "source_dataset": "liar-plus"
+            }
+
+            records.append(item)
 
         # Write split-specific jsonl
         with open(out_path, "w", encoding="utf-8") as f:

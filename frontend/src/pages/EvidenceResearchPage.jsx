@@ -94,9 +94,9 @@ export default function EvidenceResearchPage({
           <span className="crumb-sep">/</span>
           <span className="crumb-current">Evidence &amp; RAG Research</span>
         </div>
-        <h1>PolitiFact Evidence Retrieval &amp; Hybrid RAG</h1>
+        <h1>PolitiFact Evidence Retrieval &amp; Semantic RAG</h1>
         <p className="page-description">
-          Queries 10,154 verified PolitiFact rulings in the LIAR-PLUS benchmark to retrieve precedent claims, published journalistic justifications, and factual rulings.
+          Queries 5,562 verified PolitiFact rulings in the canonical socioeconomic training corpus to retrieve precedent claims, published journalistic justifications, and factual rulings.
         </p>
       </div>
 
@@ -117,7 +117,7 @@ export default function EvidenceResearchPage({
           </div>
           <div className="corpus-stat-item">
             <span className="corpus-stat-label">Retrieval Mode</span>
-            <strong>Hybrid Semantic &amp; Lexical Matching</strong>
+            <strong>Semantic Similarity (ChromaDB Embeddings)</strong>
           </div>
         </div>
       )}
@@ -242,7 +242,7 @@ export default function EvidenceResearchPage({
 
                       {similarityPct && (
                         <div className="similarity-badge">
-                          <span className="sim-label">Hybrid Relevance</span>
+                          <span className="sim-label">Semantic Similarity</span>
                           <strong>{similarityPct}%</strong>
                         </div>
                       )}

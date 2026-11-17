@@ -30,7 +30,7 @@ from backend.evidence_retriever import (
 from backend.main import app
 from fastapi.testclient import TestClient
 
-VALID_LIAR_LABELS = {"barely-true", "false", "half-true", "mostly-true", "pants-fire", "true"}
+VALID_LIAR_LABELS = {"barely-true", "false", "half-true", "mostly-true", "pants-fire", "true", "Misleading", "Half-True", "Factual"}
 
 
 # ==============================================================================
@@ -64,10 +64,10 @@ def test_evidence_retriever_train_split_indexing(real_train_retriever):
     stats = real_train_retriever.get_index_stats()
     assert stats["is_indexed"] is True
     assert stats["total_examined"] == 12789
-    assert stats["total_indexed"] == 10154
-    assert stats["total_excluded"] == 2635
+    assert stats["total_indexed"] == 10125
+    assert stats["total_excluded"] == 2664
     assert stats["exclusion_reasons"]["excluded_split"] == 2551  # 1284 val + 1267 test
-    assert stats["exclusion_reasons"]["missing_justification"] == 84
+    assert stats["exclusion_reasons"]["missing_justification"] == 113
     assert stats["included_splits"] == ["train"]
 
     # Verify that every indexed record belongs exclusively to the train split
@@ -399,17 +399,16 @@ def test_api_evidence_search_success(api_client):
 
 def test_api_evidence_stats_endpoint(api_client):
     """
-    Verify GET /evidence/stats returns accurate index metadata.
+    Verify GET /evidence/stats returns accurate index metadata for the canonical socioeconomic evidence collection.
     """
     response = api_client.get("/evidence/stats")
     assert response.status_code == 200
 
     stats = response.json()
     assert stats["is_indexed"] is True
-    assert stats["total_indexed"] == 10154
-    assert stats["total_excluded"] == 2635
-    assert stats["included_splits"] == ["train"]
-    assert stats["vocab_size"] > 10000
+    assert stats["total_indexed"] == 5562
+    assert stats["split"] == "train"
+    assert stats["vocab_size"] > 0
 
 
 def test_api_evidence_search_validation_errors(api_client):

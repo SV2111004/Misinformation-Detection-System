@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import Navbar from "./components/Navbar";
 import DashboardPage from "./pages/DashboardPage";
 import ClaimAnalysisPage from "./pages/ClaimAnalysisPage";
-import ModelComparisonPage from "./pages/ModelComparisonPage";
 import EvidenceResearchPage from "./pages/EvidenceResearchPage";
 import AgenticAnalysisPage from "./pages/AgenticAnalysisPage";
 import HistoricalInfluencePage from "./pages/HistoricalInfluencePage";
@@ -115,15 +114,6 @@ export default function App() {
           />
         )}
 
-        {currentPath === "/model-comparison" && (
-          <ModelComparisonPage
-            claim={claim}
-            setClaim={setClaim}
-            onSaveHistory={saveHistory}
-            onNavigate={navigate}
-          />
-        )}
-
         {currentPath === "/evidence" && (
           <EvidenceResearchPage
             claim={claim}
@@ -164,7 +154,7 @@ export default function App() {
           <div className="footer-left">
             <strong>VERITAS · Misinformation Detection &amp; Diffusion Intelligence System</strong>
             <p>
-              Undergraduate Engineering Major Project · Fine-Tuned DistilBERT, LIAR-PLUS Hybrid RAG, FakeNewsNet, Twitter15/16 Benchmarks.
+              Undergraduate Engineering Major Project · Fine-Tuned DistilBERT, LIAR-PLUS Semantic RAG, FakeNewsNet, Twitter15/16 Benchmarks.
             </p>
           </div>
           <div className="footer-right">
