@@ -74,14 +74,14 @@ export const LABEL_INFO = {
 };
 
 export const EXAMPLES = [
-  "Under the Affordable Care Act, the national uninsured rate dropped below 9 percent while hospital uncompensated care costs declined significantly.",
-  "The state unemployment rate dropped below 4.5 percent following new manufacturing investments and statewide workforce development initiatives.",
-  "The proposed federal tax reform will eliminate standard deductions and raise effective tax rates on middle-income working families.",
-  "State budget appropriations for public K-12 education were reduced by over $400 million, lowering per-pupil classroom spending.",
-  "Over 70 percent of Supplemental Nutrition Assistance Program (SNAP) benefits are distributed to households with children, seniors, or disabled individuals.",
-  "The expanded Child Tax Credit reduced nationwide child poverty by roughly 50 percent during its first full year of implementation.",
-  "The federal minimum wage adjusted for inflation is worth approximately 20 percent less than it was forty years ago.",
-  "Medicare and Medicaid expenditures currently account for nearly half of all mandatory federal budget outlays.",
+  "Under the Affordable Care Act, the number of uninsured Americans reached a record low.",
+  "The new economic policy created over four million new jobs in two years.",
+  "The new tax plan will raise income taxes on middle-class working families.",
+  "The state government cut public school funding by more than 400 million dollars.",
+  "Most food stamp benefits go to families with children, seniors, or people with disabilities.",
+  "The expanded Child Tax Credit cut child poverty in half in its first year.",
+  "The federal minimum wage buys twenty percent less today than it did forty years ago.",
+  "Medicare and Social Security make up nearly half of all federal government spending.",
 ];
 
 export function formatLabel(label) {
