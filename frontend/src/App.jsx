@@ -148,17 +148,17 @@ export default function App() {
         )}
       </main>
 
-      {/* Professional Academic Footer */}
+      {/* Professional Minimal Footer */}
       <footer className="app-footer">
         <div className="footer-content-row">
           <div className="footer-left">
-            <strong>VERITAS · Misinformation Detection &amp; Diffusion Intelligence System</strong>
-            <p>
-              Undergraduate Engineering Major Project · Fine-Tuned DistilBERT, LIAR-PLUS Semantic RAG, FakeNewsNet, Twitter15/16 Benchmarks.
-            </p>
+            <span className="footer-brand-name">Misinformation Detection &amp; Social Network Propagation</span>
+            <span className="footer-purpose-text">
+              Research and intelligence platform for claim credibility verification and social network cascade analysis.
+            </span>
           </div>
           <div className="footer-right">
-            <span>Powered by FastAPI + PyTorch + ChromaDB + NetworkX + React</span>
+            <span className="footer-scope-badge">Socio-Economic &amp; Domestic Policy Domain</span>
           </div>
         </div>
       </footer>

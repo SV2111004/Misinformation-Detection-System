@@ -16,7 +16,7 @@ export default function ClaimInputCard({
       <form onSubmit={onSubmit} className="claim-form">
         <div className="claim-input-header">
           <label htmlFor="claim-textarea" className="claim-input-label">
-            Target Statement / Claim Text
+            Statement or claim to evaluate
           </label>
           <span className="character-counter">{claim.length} characters</span>
         </div>
@@ -73,7 +73,7 @@ export default function ClaimInputCard({
 
       {showExamples && (
         <div className="claim-examples-container">
-          <span className="examples-header">Illustrative Benchmark Claims (Socio-Economic &amp; Domestic Welfare Policy):</span>
+          <span className="examples-header">Suggested benchmark claims:</span>
           <div className="examples-pill-list">
             {EXAMPLES.map((ex, idx) => (
               <button

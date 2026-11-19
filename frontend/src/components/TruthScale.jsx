@@ -18,18 +18,17 @@ export default function TruthScale({
   const items = SPECTRUM_ITEMS_3;
   const activeInfo = getLabelInfo(activeLabel);
 
-  const displayTitle = title || "Socio-Economic Policy Veracity Scale (3-Class)";
+  const displayTitle = title || "Veracity Scale";
 
   return (
     <div className="truth-scale-card">
       <div className="truth-scale-header">
         <div>
-          <span className="scale-eyebrow">TARGET POLICY DOMAIN SCALE</span>
           <h4>{displayTitle}</h4>
         </div>
         {activeLabel && (
           <span className="scale-active-badge">
-            Predicted: <strong>{activeInfo.title}</strong>
+            Classification: <strong>{activeInfo.title}</strong>
           </span>
         )}
       </div>

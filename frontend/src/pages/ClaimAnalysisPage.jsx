@@ -84,9 +84,9 @@ export default function ClaimAnalysisPage({
           <span className="crumb-sep">/</span>
           <span className="crumb-current">Claim Classifier</span>
         </div>
-        <h1>Political Misinformation Classifier</h1>
+        <h1>Claim Classifier</h1>
         <p className="page-description">
-          Evaluates claims within the focused <strong>{TARGET_DOMAIN}</strong> using our verified 3-Class formulation (Misleading, Half-True, Factual).
+          Evaluate political statements and policy claims across verified veracity levels.
         </p>
       </div>
 
@@ -112,32 +112,23 @@ export default function ClaimAnalysisPage({
           <div className="primary-verdict-card">
             <div className="verdict-card-header">
               <div className="verdict-title-col">
-                <span className="verdict-eyebrow">
-                  SOCIO-ECONOMIC POLICY 3-CLASS VERDICT · {result.model || "DistilBERT"}
-                </span>
+                <span className="verdict-eyebrow">VERACITY ASSESSMENT</span>
                 <div className="verdict-banner-row">
                   <h2 className={`verdict-class-name level-text-${labelInfo.level}`}>
                     {labelInfo.title}
                   </h2>
-                  <span className="verdict-standard-tag">
-                    Domain Standard (N=6,944 claims)
-                  </span>
                 </div>
                 <p className="verdict-description-text">
-                  Evaluated under the <strong>{TARGET_DOMAIN}</strong> formulation. This claim is classified as{" "}
-                  <strong>{labelInfo.title}</strong> based on statistical alignment with verified fiscal, budgetary, labor, and public welfare policy audits.
+                  Classified as <strong>{labelInfo.title}</strong> based on alignment with verified policy records and published fact-checks.
                 </p>
               </div>
 
               <div className="verdict-confidence-box">
                 <ConfidenceBar
                   value={result?.confidence || 0.5}
-                  label="Model Confidence"
+                  label="Classification Confidence"
                   level={labelInfo.level}
                 />
-                <span className="confidence-caveat-note">
-                  *Trained on 5,562 domain claims with 99.3% published fact-checker justifications.*
-                </span>
               </div>
             </div>
 
@@ -152,12 +143,12 @@ export default function ClaimAnalysisPage({
             {/* Class Probability Distribution Breakdown */}
             {Object.keys(probabilities).length > 0 && (
               <div className="probabilities-breakdown-card">
-                <h4>Socio-Economic 3-Class Probability Distribution</h4>
+                <h4>Class Probability Distribution</h4>
                 <div className="probability-bars-grid">
                   {[
-                    { key: "Misleading", label: "Misleading (Substantively False / Fabricated)", level: 2 },
-                    { key: "Half-True", label: "Half-True (Partially Accurate / Context Omitted)", level: 4 },
-                    { key: "Factual", label: "Factual (Substantially Accurate & Corroborated)", level: 6 },
+                    { key: "Misleading", label: "Misleading", level: 2 },
+                    { key: "Half-True", label: "Half-True", level: 4 },
+                    { key: "Factual", label: "Factual", level: 6 },
                   ].map((cls) => {
                     const prob =
                       probabilities[cls.key] !== undefined
@@ -172,7 +163,7 @@ export default function ClaimAnalysisPage({
                         className={`probability-bar-row ${isWinner ? "row-winner" : ""}`}
                       >
                         <span className="prob-label">
-                          {cls.label} {isWinner && "★"}
+                          {cls.label} {isWinner && <span className="winner-indicator">✓</span>}
                         </span>
                         <div className="prob-track">
                           <div
@@ -191,28 +182,28 @@ export default function ClaimAnalysisPage({
 
           {/* Quick Nav Suggestions to Other Modules */}
           <div className="post-analysis-actions-card">
-            <h4>Next Analysis Steps for this Claim:</h4>
+            <h4>Recommended Next Steps</h4>
             <div className="quick-actions-row">
               <button
                 type="button"
                 className="btn-action-outline"
                 onClick={() => onNavigate("/evidence")}
               >
-                📚 Search Historical Evidence (RAG) →
+                Search Historical Evidence →
               </button>
               <button
                 type="button"
                 className="btn-action-outline"
                 onClick={() => onNavigate("/agentic-analysis")}
               >
-                🤖 Run Full Multi-Agent Pipeline →
+                Run Multi-Agent Synthesis →
               </button>
               <button
                 type="button"
                 className="btn-action-outline"
                 onClick={() => onNavigate("/influence-analysis")}
               >
-                📊 Inspect Social Influence Signals →
+                Inspect Social Signals →
               </button>
             </div>
           </div>

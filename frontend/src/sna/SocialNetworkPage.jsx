@@ -139,18 +139,20 @@ export default function SocialNetworkPage({ onBack }) {
   };
 
   return (
-    <div className="sna-page-container">
+    <div className="page-container sna-page-container">
       {/* Page Header */}
-      <div className="sna-page-header">
-        <button type="button" className="sna-back-button" onClick={onBack}>
-          ← Back to Dashboard
-        </button>
-        <div className="sna-header-titles">
-          <h1>Social Network Propagation Graph</h1>
-          <p>
-            Visualizes the observed spread of a selected post across users in the rumor propagation tree.
-          </p>
+      <div className="page-header">
+        <div className="header-breadcrumbs">
+          <button type="button" className="crumb-link" onClick={onBack}>
+            Dashboard
+          </button>
+          <span className="crumb-sep">/</span>
+          <span className="crumb-current">Propagation Graph</span>
         </div>
+        <h1>Propagation Graph</h1>
+        <p className="page-description">
+          Interactive directed tree displaying observed user-to-user forwarding relationships and cascade structure.
+        </p>
       </div>
 
       {/* Dataset & Post Selection */}
@@ -494,14 +496,6 @@ export default function SocialNetworkPage({ onBack }) {
             )}
           </div>
         </div>
-      </div>
-
-      {/* Academic Note Footer */}
-      <div className="sna-footnote">
-        <p>
-          Note: This graph reflects the observed parent-child propagation tree from the Twitter15/Twitter16 benchmark.
-          It represents recorded forwarding relationships for this post, not the complete Twitter follower network.
-        </p>
       </div>
     </div>
   );

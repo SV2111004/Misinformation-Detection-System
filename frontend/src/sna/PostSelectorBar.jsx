@@ -76,7 +76,7 @@ export default function PostSelectorBar({
       <div className="sna-selector-controls-row">
         {/* Dataset Selection */}
         <div className="sna-control-group">
-          <label className="sna-control-label">Dataset Benchmark:</label>
+          <label className="sna-control-label">Dataset:</label>
           <div className="sna-pill-group">
             <button
               type="button"
@@ -97,7 +97,7 @@ export default function PostSelectorBar({
 
         {/* Veracity Filter */}
         <div className="sna-control-group">
-          <label className="sna-control-label">Filter by Label:</label>
+          <label className="sna-control-label">Filter by Veracity:</label>
           <div className="sna-filter-buttons">
             {RUMOR_LABELS.map((item) => (
               <button
@@ -116,7 +116,7 @@ export default function PostSelectorBar({
       {/* Post Dropdown and Search */}
       <div className="sna-cascade-picker">
         <label className="sna-control-label">
-          Select Cascade ({totalCount} Available):
+          Select Cascade:
         </label>
         <div className="sna-picker-inputs">
           <select

@@ -252,6 +252,136 @@ def test_agent_d_verification_risk():
     assert any("Guardrail" in u for u in data["uncertainties"])
 
 
+def test_agent_d_all_agreeing():
+    """Tests Agent D when Agent A and B agree with corroborating Agent C context."""
+    agent = VerificationRiskAgent()
+    mock_a = {"status": "completed", "data": {"label": "Factual", "confidence": 0.92}}
+    mock_b = {
+        "status": "completed",
+        "data": {
+            "evidence_status": "grounded",
+            "has_conflicts": False,
+            "citations": [
+                {
+                    "statement_id": "c_1",
+                    "claim": "The corporate tax rate was lowered to 21 percent.",
+                    "verdict": "true",
+                    "similarity_score": 0.88,
+                    "has_justification": True,
+                    "justification": "The Tax Cuts and Jobs Act of 2017 lowered the rate to 21 percent.",
+                }
+            ],
+        },
+    }
+    mock_c = {
+        "status": "completed",
+        "data": {
+            "matched_stories": [{"headline": "Corporate tax reform signed", "tweet_count": 120}],
+            "engagement_velocity": 45.0,
+            "velocity_percentile": 60.0,
+        },
+    }
+    res = agent.run("The corporate tax rate was lowered to 21 percent.", mock_a, mock_b, mock_c)
+    data = res["data"]
+    assert data["final_verdict"] == "Supported by Evidence"
+    assert data["evidence_status"] == "Supporting"
+    assert "decision_breakdown" in data
+    assert "risk_score_breakdown" in data
+    assert data["risk_score_breakdown"]["social_influence_weight_pct"] == 0.0
+
+
+def test_agent_d_a_and_b_disagreeing():
+    """Tests Agent D when Agent A predicts Factual but Agent B finds Contradictory evidence."""
+    agent = VerificationRiskAgent()
+    mock_a = {"status": "completed", "data": {"label": "Factual", "confidence": 0.85}}
+    mock_b = {
+        "status": "completed",
+        "data": {
+            "evidence_status": "grounded",
+            "has_conflicts": False,
+            "citations": [
+                {
+                    "statement_id": "c_2",
+                    "claim": "The unemployment rate dropped to an all-time low of 1 percent.",
+                    "verdict": "false",
+                    "similarity_score": 0.82,
+                    "has_justification": True,
+                    "justification": "BLS historical data shows the rate never fell to 1 percent in recorded history.",
+                }
+            ],
+        },
+    }
+    mock_c = {"status": "completed", "data": {"matched_stories": []}}
+
+    res = agent.run("The unemployment rate dropped to an all-time low of 1 percent.", mock_a, mock_b, mock_c)
+    data = res["data"]
+    # Empirical fact-checks override classifier prediction!
+    assert data["final_verdict"] == "Contradicted by Evidence"
+    assert data["evidence_status"] == "Contradicting"
+    assert "precedence" in data["decision_breakdown"]["verdict_rationale"].lower() or "contradict" in data["decision_breakdown"]["verdict_rationale"].lower()
+
+
+def test_agent_d_agent_c_unavailable():
+    """Tests Agent D when Agent C data is unavailable or has no matched stories."""
+    agent = VerificationRiskAgent()
+    mock_a = {"status": "completed", "data": {"label": "Misleading", "confidence": 0.80}}
+    mock_b = {
+        "status": "completed",
+        "data": {
+            "evidence_status": "grounded",
+            "has_conflicts": False,
+            "citations": [
+                {
+                    "statement_id": "c_3",
+                    "claim": "Social Security went bankrupt in 2022.",
+                    "verdict": "pants-fire",
+                    "similarity_score": 0.79,
+                    "has_justification": True,
+                    "justification": "SSA trustees report confirmed trust funds remained solvent with years of reserves.",
+                }
+            ],
+        },
+    }
+    mock_c = {"status": "UNAVAILABLE", "data": {"matched_stories": []}}
+
+    res = agent.run("Social Security went bankrupt in 2022.", mock_a, mock_b, mock_c)
+    data = res["data"]
+    assert data["final_verdict"] == "Contradicted by Evidence"
+    assert data["decision_breakdown"]["agent_c_role"]["matched_count"] == 0
+    # Does not claim all 3 agents concurred when C had no data!
+    assert "strong multi-agent concurrence" not in data["three_agent_synthesis"]["summary"]
+
+
+def test_agent_d_no_relevant_agent_b_evidence():
+    """Tests Agent D when Agent B finds no relevant historical fact-checks."""
+    agent = VerificationRiskAgent()
+    mock_a = {"status": "completed", "data": {"label": "Factual", "confidence": 0.88}}
+    mock_b = {"status": "completed", "data": {"citations": [], "has_conflicts": False}}
+    mock_c = {"status": "completed", "data": {"matched_stories": []}}
+
+    res = agent.run("Obscure local municipal tax ordinance claim.", mock_a, mock_b, mock_c)
+    data = res["data"]
+    # Does NOT force claim into Factual when evidence is missing!
+    assert data["final_verdict"] in {"Needs Further Verification", "Insufficient Evidence"}
+    assert data["evidence_status"] == "Insufficient"
+    assert data["uncertainty_score"] >= 0.60  # Safety bound enforced
+    assert len(data["decision_breakdown"]["missing_information"]) > 0
+
+
+def test_agent_d_incomplete_backend_responses():
+    """Tests Agent D handles offline/incomplete agent outputs gracefully."""
+    agent = VerificationRiskAgent()
+    mock_a = {"status": "UNAVAILABLE", "data": {}}
+    mock_b = {"status": "UNAVAILABLE", "data": {}}
+    mock_c = {"status": "UNAVAILABLE", "data": {}}
+
+    res = agent.run("Any claim with all agents offline.", mock_a, mock_b, mock_c)
+    assert res["status"] in {"completed", "SUCCESS"}
+    data = res["data"]
+    assert data["final_verdict"] in {"Insufficient Evidence", "Needs Further Verification"}
+    assert data["uncertainty_score"] >= 0.75
+
+
 def test_agent_e_mitigation_recommendations():
     """Tests Agent E (Mitigation Recommendation Agent) provides responsible non-coercive advice."""
     agent = MitigationRecommendationAgent()

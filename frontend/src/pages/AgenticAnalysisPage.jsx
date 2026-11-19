@@ -2,7 +2,36 @@ import { useState } from "react";
 import ClaimInputCard from "../components/ClaimInputCard";
 import { API_URL, getLabelInfo, formatSpeaker, formatAffiliation, formatDateTime } from "../utils/constants";
 
-// Helper for Stance metadata and styling
+// Helper to strip accidental duplicate quotes from claims
+function cleanClaimText(text) {
+  if (!text) return "";
+  let clean = String(text).trim();
+  while (
+    (clean.startsWith('"') && clean.endsWith('"')) ||
+    (clean.startsWith("'") && clean.endsWith("'")) ||
+    (clean.startsWith("“") && clean.endsWith("”")) ||
+    (clean.startsWith("‘") && clean.endsWith("’"))
+  ) {
+    clean = clean.slice(1, -1).trim();
+  }
+  return clean;
+}
+
+// Helper to extract a short, readable takeaway from fact-checker justification
+function getShortJustification(text) {
+  if (!text) return "No published fact-checker justification available for this record.";
+  const trimmed = text.trim();
+  const firstPeriod = trimmed.indexOf(". ");
+  if (firstPeriod > 25 && firstPeriod < 160) {
+    return trimmed.slice(0, firstPeriod + 1);
+  }
+  if (trimmed.length > 140) {
+    return trimmed.slice(0, 137) + "...";
+  }
+  return trimmed;
+}
+
+// Helper for Stance metadata and plain English explanation
 const getStanceMeta = (stance) => {
   switch (stance) {
     case "SUPPORTED_BY_EVIDENCE":
@@ -13,7 +42,7 @@ const getStanceMeta = (stance) => {
         color: "#15803d",
         bg: "#f0fdf4",
         border: "#bbf7d0",
-        desc: "Historical fact-checking records corroborate the factual claims made in this statement.",
+        desc: "Historical fact-checking records corroborate the factual claims in this statement.",
       };
     case "CONTRADICTED_BY_EVIDENCE":
       return {
@@ -27,7 +56,7 @@ const getStanceMeta = (stance) => {
       };
     case "DISPUTED_STANCE":
       return {
-        title: "Disputed / Conflicting Evidence",
+        title: "Disputed / Mixed Evidence",
         className: "stance-pill-disputed",
         icon: "⚠️",
         color: "#b45309",
@@ -43,12 +72,12 @@ const getStanceMeta = (stance) => {
         color: "#0369a1",
         bg: "#f0f9ff",
         border: "#bae6fd",
-        desc: "Historical precedent partially matches the claim, but specific numbers, qualifiers, or context differ.",
+        desc: "Historical records partially match the topic, but specific figures or qualifiers differ.",
       };
     case "NO_RELEVANT_EVIDENCE":
     default:
       return {
-        title: "Insufficient Empirical Evidence",
+        title: "Insufficient Evidence",
         className: "stance-pill-insufficient",
         icon: "⚪",
         color: "#475569",
@@ -59,39 +88,71 @@ const getStanceMeta = (stance) => {
   }
 };
 
-// Helper for Risk Level metadata and styling
-const getRiskMeta = (riskLevel, riskScore) => {
-  const score = Number(riskScore) || 50.0;
-  if (riskLevel === "HIGH_MISINFORMATION_RISK" || score >= 70.0) {
+// Helper for Final Verification Result badge and colors
+const getFinalVerdictBadge = (finalVerdict) => {
+  const norm = String(finalVerdict || "").toLowerCase().trim();
+  if (norm.includes("supported by evidence")) {
     return {
-      title: "High Misinformation Risk",
-      category: "High Risk",
-      className: "risk-tag-high",
-      color: "#b91c1c",
-      bg: "#fef2f2",
-      border: "#fecaca",
-      desc: "Statement conflicts with verified evidence or exhibits strong linguistic markers of misinformation.",
-    };
-  }
-  if (riskLevel === "LOW_MISINFORMATION_RISK" || score < 35.0) {
-    return {
-      title: "Low Misinformation Risk",
-      category: "Low Risk",
-      className: "risk-tag-low",
+      title: "Supported by Evidence",
       color: "#15803d",
       bg: "#f0fdf4",
       border: "#bbf7d0",
-      desc: "Statement aligns with verified official figures or corroborated factual precedents.",
+      badgeBg: "#dcfce7",
+      badgeColor: "#166534",
+      badgeBorder: "#86efac",
+      icon: "✓",
+      desc: "Corroborated by verified historical fact-checks and official records.",
+    };
+  }
+  if (norm.includes("contradicted by evidence")) {
+    return {
+      title: "Contradicted by Evidence",
+      color: "#b91c1c",
+      bg: "#fef2f2",
+      border: "#fecaca",
+      badgeBg: "#fee2e2",
+      badgeColor: "#991b1b",
+      badgeBorder: "#fca5a5",
+      icon: "✗",
+      desc: "Refuted or contradicted by empirical historical fact-checking records.",
+    };
+  }
+  if (norm.includes("mixed evidence") || norm.includes("disputed")) {
+    return {
+      title: "Mixed Evidence",
+      color: "#b45309",
+      bg: "#fffbeb",
+      border: "#fde68a",
+      badgeBg: "#fef3c7",
+      badgeColor: "#92400e",
+      badgeBorder: "#fcd34d",
+      icon: "⚠️",
+      desc: "Historical records show conflicting verdicts or partially accurate figures with omitted context.",
+    };
+  }
+  if (norm.includes("insufficient evidence")) {
+    return {
+      title: "Insufficient Evidence",
+      color: "#475569",
+      bg: "#f8fafc",
+      border: "#e2e8f0",
+      badgeBg: "#f1f5f9",
+      badgeColor: "#334155",
+      badgeBorder: "#cbd5e1",
+      icon: "⚪",
+      desc: "No sufficiently relevant historical fact-checks were found in our records to make a definitive determination.",
     };
   }
   return {
-    title: "Moderate Misinformation Risk",
-    category: "Moderate Risk",
-    className: "risk-tag-moderate",
-    color: "#d97706",
-    bg: "#fffbeb",
-    border: "#fde68a",
-    desc: "Statement contains nuanced, partially accurate, or contextually contested claims.",
+    title: "Needs Further Verification",
+    color: "#c2410c",
+    bg: "#fff7ed",
+    border: "#ffedd5",
+    badgeBg: "#ffedd5",
+    badgeColor: "#9a3412",
+    badgeBorder: "#fdba74",
+    icon: "🔍",
+    desc: "Classifier prediction lacks empirical grounding in our fact-checking archive. Independent primary verification is advised.",
   };
 };
 
@@ -105,8 +166,8 @@ export default function AgenticAnalysisPage({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [collapsedCitations, setCollapsedCitations] = useState({});
+  const [showAllCitations, setShowAllCitations] = useState(false);
   const [showTechnicalDetails, setShowTechnicalDetails] = useState(false);
-  const [showRawJson, setShowRawJson] = useState(false);
 
   const handleRunAgentWorkflow = async (e) => {
     if (e) e.preventDefault();
@@ -142,6 +203,9 @@ export default function AgenticAnalysisPage({
       }
 
       setAgentData(data);
+      setShowAllCitations(false);
+      setShowTechnicalDetails(false);
+
       if (onSaveHistory) {
         onSaveHistory({
           claim: targetClaim,
@@ -177,7 +241,6 @@ export default function AgenticAnalysisPage({
   const citations = evidenceRAG?.citations || [];
   const matchedStories = historicalInfluence?.matched_stories || [];
   const recommendations = mitigation?.recommendations || [];
-  const trace = agentData?.execution_trace || [];
 
   // Citation Expand/Collapse Controls
   const toggleCitation = (id) => {
@@ -200,50 +263,40 @@ export default function AgenticAnalysisPage({
   };
 
   // Safe Metric Derivations
-  const riskScore = verification?.composite_risk_score !== undefined
-    ? Number(verification.composite_risk_score).toFixed(1)
-    : "50.0";
-  const riskMeta = getRiskMeta(verification?.risk_level, riskScore);
-
   const stanceKey = verification?.epistemic_stance || "NO_RELEVANT_EVIDENCE";
   const stanceMeta = getStanceMeta(stanceKey);
-
-  const uncertaintyScore = verification?.uncertainty_score !== undefined
-    ? Number(verification.uncertainty_score)
-    : 0.50;
-  const uncertaintyPct = Math.round(uncertaintyScore * 100);
-
-  const confidencePct = claimAnalysis?.confidence !== undefined
-    ? (Number(claimAnalysis.confidence) * 100).toFixed(1)
-    : "0.0";
 
   const totalRetrieved = citations.length || evidenceRAG?.retrieved_count || 0;
   const relevantCount = verification?.relevant_citations_count !== undefined
     ? verification.relevant_citations_count
-    : (citations.filter((c) => (c.similarity_score || 0) >= 0.45).length);
+    : citations.length;
 
   const hasConflicts = Boolean(evidenceRAG?.has_conflicts || verification?.evidence_conflict);
   const isNoEvidence = stanceKey === "NO_RELEVANT_EVIDENCE" || totalRetrieved === 0 || relevantCount === 0;
 
-  // Three-Agent Cross-Analysis fields from Agent D
+  // Cross-Analysis fields from Agent D
   const aVsB = verification?.a_vs_b;
-  const bVsC = verification?.b_vs_c;
   const threeAgentSynth = verification?.three_agent_synthesis;
   const agentContributions = threeAgentSynth?.agent_contributions;
+  const decisionBreakdown = verification?.decision_breakdown;
 
-  // Plain-English Explanation for Agent A
-  const getAgentAExplanation = (label) => {
-    switch (String(label).toLowerCase()) {
-      case "misleading":
-        return "DistilBERT classified this claim as Misleading because its wording and patterns match political claims previously determined to be inaccurate, exaggerated, or factually unsubstantiated.";
-      case "half-true":
-        return "DistilBERT classified this claim as Half-True because it shares characteristics with statements that contain a factual core but omit important context, nuances, or qualifiers.";
-      case "factual":
-        return "DistilBERT classified this claim as Factual because its phrasing aligns with verified statements corroborated by reliable economic or policy data.";
-      default:
-        return claimAnalysis?.calibration_note || "Linguistic classification completed based on stylistic patterns in the training corpus.";
-    }
-  };
+  // Derive Final Verdict Label
+  const finalVerdictText =
+    decisionBreakdown?.final_verdict ||
+    verification?.final_verdict ||
+    (stanceKey === "SUPPORTED_BY_EVIDENCE"
+      ? "Supported by Evidence"
+      : stanceKey === "CONTRADICTED_BY_EVIDENCE"
+      ? "Contradicted by Evidence"
+      : stanceKey === "DISPUTED_STANCE"
+      ? "Mixed Evidence"
+      : "Needs Further Verification");
+
+  const finalVerdictBadge = getFinalVerdictBadge(finalVerdictText);
+
+  // Confidence for Agent A
+  const confidencePercent = Math.round((Number(claimAnalysis?.confidence) || 0.5) * 1000) / 10;
+  const normalizedLabel = String(claimAnalysis?.label || "Half-True").toLowerCase();
 
   return (
     <div className="page-container agentic-page">
@@ -254,11 +307,11 @@ export default function AgenticAnalysisPage({
             Dashboard
           </button>
           <span className="crumb-sep">/</span>
-          <span className="crumb-current">Claim Verification</span>
+          <span className="crumb-current">Multi-Agent Workflow</span>
         </div>
-        <h1>Political Misinformation Detection System</h1>
+        <h1>Multi-Agent Workflow</h1>
         <p className="page-description">
-          A multi-agent system combining DistilBERT linguistic analysis, LIAR-PLUS historical fact-checking evidence, and FakeNewsNet benchmark data to evaluate political claims.
+          Cross-verify political claims through sequential agent reasoning: classification, empirical evidence retrieval, and social context.
         </p>
       </div>
 
@@ -278,212 +331,137 @@ export default function AgenticAnalysisPage({
         placeholder="Enter a political statement (e.g., 'The federal corporate tax rate was lowered to 21 percent')..."
       />
 
-      {/* Verification Results Flow */}
+      {/* Results Flow in Strict Sequential Order */}
       {agentData && (
-        <div className="simple-results-flow">
-          {/* Status Bar */}
-          <div className="simple-status-strip">
-            <div className="status-left">
-              <span className="status-indicator-dot online" />
-              <span>Analysis Complete &bull; 5 Working Agents Finished</span>
-            </div>
-            {agentData.total_duration_ms && (
-              <span className="status-right-text">
-                Response Time: {(agentData.total_duration_ms / 1000).toFixed(2)}s
-              </span>
-            )}
-          </div>
-
+        <div className="agent-results-container">
           {/* =========================================================
-              SECTION 1: SUBMITTED CLAIM
+              1. SUBMITTED STATEMENT (TOP)
           ========================================================= */}
-          <section className="simple-card claim-hero-card">
-            <div className="simple-card-header">
-              <span className="card-number-tag">1</span>
-              <h2 className="card-title">Submitted Claim</h2>
-            </div>
-            <div className="claim-quote-content">
-              <p className="submitted-claim-quote">&ldquo;{agentData.claim}&rdquo;</p>
-              <div className="claim-metadata-row">
-                <span className="meta-item">
-                  <strong>Domain:</strong> Socio-Economic &amp; Domestic Welfare Policy
-                </span>
-                {agentData.timestamp && (
-                  <span className="meta-item">
-                    <strong>Analyzed:</strong> {formatDateTime(agentData.timestamp)}
-                  </span>
-                )}
-              </div>
-            </div>
+          <section className="agent-result-card claim-summary-card">
+            <span className="card-kicker">Submitted Claim</span>
+            <p className="clean-statement-text">&ldquo;{cleanClaimText(agentData.claim)}&rdquo;</p>
+            {agentData.timestamp && (
+              <span className="statement-timestamp">Analyzed on {formatDateTime(agentData.timestamp)}</span>
+            )}
           </section>
 
           {/* =========================================================
-              SECTION 2: AGENT A - CLAIM CLASSIFICATION (DistilBERT)
+              2. AGENT A: VERACITY ASSESSMENT (DistilBERT Classification)
           ========================================================= */}
           {claimAnalysis && (
-            <section className="simple-card agent-a-card">
-              <div className="simple-card-header">
-                <span className="card-number-tag">2</span>
-                <div>
-                  <h2 className="card-title">Agent A &ndash; Claim Classification (DistilBERT)</h2>
-                  <span className="card-subtitle">Linguistic and stylistic analysis of the statement</span>
+            <section className="agent-result-card agent-a-card">
+              <div className="agent-card-header">
+                <div className="agent-header-titles">
+                  <span className="agent-role-tag">Agent A</span>
+                  <div>
+                    <h3 className="agent-title">Veracity Assessment</h3>
+                    <span className="agent-sub-title">DistilBERT Claim Classification</span>
+                  </div>
                 </div>
               </div>
 
-              <div className="simple-card-body">
-                <div className="result-highlight-box">
-                  <div className="highlight-item">
-                    <span className="highlight-label">Predicted Label:</span>
-                    <span className={`label-badge badge-${String(claimAnalysis.label).toLowerCase()}`}>
-                      {claimAnalysis.label || "Unknown"}
+              <div className="agent-card-body">
+                <div className="veracity-assessment-hero">
+                  <div className="predicted-label-container">
+                    <span className="metric-label">Predicted Classification</span>
+                    <div className="prominent-classification-display">
+                      <span className={`veracity-chip-large chip-large-${normalizedLabel}`}>
+                        {claimAnalysis.label || "Half-True"}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="confidence-meter-container">
+                    <div className="confidence-label-row">
+                      <span className="confidence-label-text">Classification Confidence</span>
+                      <strong className="confidence-value-text">{confidencePercent}%</strong>
+                    </div>
+                    <div className="confidence-progress-track">
+                      <div
+                        className={`confidence-progress-fill fill-${normalizedLabel}`}
+                        style={{ width: `${Math.min(100, Math.max(8, confidencePercent))}%` }}
+                      />
+                    </div>
+                    <span className="confidence-sub-caption">
+                      Model confidence indicates certainty in the predicted label across canonical training claims, not proof of absolute truth.
                     </span>
                   </div>
-                  <div className="highlight-item">
-                    <span className="highlight-label">Model Confidence:</span>
-                    <span className="highlight-value">{confidencePct}%</span>
-                  </div>
-                  <div className="highlight-item">
-                    <span className="highlight-label">Risk Category:</span>
-                    <span className="highlight-value highlight-muted">{claimAnalysis.risk_tier || "Standard"}</span>
-                  </div>
-                </div>
-
-                <div className="explanation-paragraph">
-                  <strong>What this means:</strong>
-                  <p>{getAgentAExplanation(claimAnalysis.label)}</p>
                 </div>
               </div>
             </section>
           )}
 
           {/* =========================================================
-              SECTION 3: AGENT B - EVIDENCE ANALYSIS (LIAR-PLUS RAG)
+              3. AGENT B: HISTORICAL FACT-CHECKING EVIDENCE
           ========================================================= */}
           {evidenceRAG && (
-            <section className="simple-card agent-b-card">
-              <div className="simple-card-header">
-                <span className="card-number-tag">3</span>
-                <div>
-                  <h2 className="card-title">Agent B &ndash; Historical Fact-Checking Evidence (LIAR-PLUS)</h2>
-                  <span className="card-subtitle">
-                    Retrieves published PolitiFact records and journalist justifications using semantic search
-                  </span>
+            <section className="agent-result-card agent-b-card">
+              <div className="agent-card-header">
+                <div className="agent-header-titles">
+                  <span className="agent-role-tag">Agent B</span>
+                  <div>
+                    <h3 className="agent-title">Historical Fact-Checking Evidence</h3>
+                    <span className="agent-sub-title">ChromaDB Semantic Evidence Retrieval</span>
+                  </div>
                 </div>
+                <span className="evidence-count-badge">
+                  {relevantCount} Relevant Record{relevantCount === 1 ? "" : "s"}
+                </span>
               </div>
 
-              <div className="simple-card-body">
-                {/* 3A: What does the evidence tell us? */}
-                <div className="evidence-summary-container">
-                  <h3 className="subheading-title">What does the evidence tell us?</h3>
-
-                  <div className="retrieval-stats-banner">
-                    <div className="retrieval-stat">
-                      <span className="retrieval-stat-num">{totalRetrieved}</span>
-                      <span className="retrieval-stat-desc">Historical Records Retrieved</span>
-                    </div>
-                    <div className="retrieval-stat">
-                      <span className="retrieval-stat-num">{relevantCount}</span>
-                      <span className="retrieval-stat-desc">Verified Relevant Precedents</span>
-                    </div>
-                    <div className="retrieval-stat">
-                      <span className="retrieval-stat-num">
-                        {evidenceRAG.missing_justification_count !== undefined
-                          ? `${totalRetrieved - evidenceRAG.missing_justification_count}/${totalRetrieved}`
-                          : `${totalRetrieved}/${totalRetrieved}`}
-                      </span>
-                      <span className="retrieval-stat-desc">Records with Journalist Justifications</span>
-                    </div>
-                  </div>
-
-                  {/* Collective Indication derived from Grounded Summary & Epistemic Stance */}
-                  <div className="evidence-collective-verdict">
-                    <strong>Collective Evidence Indication:</strong>
-                    {isNoEvidence ? (
-                      <p className="neutral-warning-text">
-                        No sufficiently relevant historical fact-checking records were found in the dataset archive for this specific statement. Agent B cannot confirm or refute this claim based on empirical historical precedents.
-                      </p>
-                    ) : (
-                      <p>
-                        {evidenceRAG.grounded_summary || (
-                          <>
-                            Retrieved <strong>{relevantCount} relevant precedent(s)</strong> from the LIAR-PLUS archive.
-                            The collective evidence stance is evaluated as <strong>{stanceMeta.title}</strong>.
-                          </>
-                        )}
-                      </p>
-                    )}
-
-                    {/* Limitations & Flags */}
-                    {hasConflicts && (
-                      <div className="evidence-limitation-pill warning-pill">
-                        <span>⚠️</span>
-                        <span>
-                          <strong>Conflicting Historical Rulings:</strong> Retrieved historical records contain divergent verdicts, reflecting past factual debate or varying context in past statements.
-                        </span>
-                      </div>
-                    )}
-
-                    {evidenceRAG.missing_justification_count > 0 && (
-                      <div className="evidence-limitation-pill notice-pill">
-                        <span>ℹ️</span>
-                        <span>
-                          <strong>Note:</strong> {evidenceRAG.missing_justification_count} of {totalRetrieved} retrieved records lack written journalist justifications in the dataset.
-                        </span>
-                      </div>
-                    )}
-                  </div>
+              <div className="agent-card-body">
+                {/* Evidence Stance Banner */}
+                <div className={`evidence-summary-banner banner-stance-${stanceKey.toLowerCase()}`}>
+                  {isNoEvidence ? (
+                    <p>
+                      <strong>Insufficient Evidence:</strong> No sufficiently relevant historical fact-checks were found in our archive for this specific claim.
+                    </p>
+                  ) : hasConflicts ? (
+                    <p>
+                      Retrieved {relevantCount} historical fact-check{relevantCount === 1 ? "" : "s"}.{" "}
+                      <strong>The evidence conflicts:</strong> past fact-checkers reached differing verdicts on related statements.
+                    </p>
+                  ) : (
+                    <p>
+                      Retrieved {relevantCount} relevant historical fact-check{relevantCount === 1 ? "" : "s"}.{" "}
+                      The records collectively <strong>{stanceKey === "SUPPORTED_BY_EVIDENCE" ? "support" : (stanceKey === "CONTRADICTED_BY_EVIDENCE" ? "contradict" : "partially align with")}</strong> this claim.
+                    </p>
+                  )}
                 </div>
 
-                {/* 3B: Retrieved Historical Claims (Expandable Cards) */}
-                <div className="citations-block">
-                  <div className="citations-header-bar">
-                    <h4 className="citations-section-title">
-                      Retrieved Historical Precedents ({citations.length})
-                    </h4>
-                    {citations.length > 0 && (
-                      <div className="citation-btn-group">
-                        <button type="button" className="simple-text-btn" onClick={expandAllCitations}>
-                          Expand All
-                        </button>
-                        <span className="btn-sep">|</span>
-                        <button type="button" className="simple-text-btn" onClick={collapseAllCitations}>
-                          Collapse All
-                        </button>
+                {/* Historical Evidence Records (Top 2 Initially, Expandable to All) */}
+                {citations.length > 0 && (
+                  <div className="evidence-citations-wrapper">
+                    <div className="citations-controls-bar">
+                      <span className="citations-count-label">
+                        Showing {showAllCitations ? citations.length : Math.min(2, citations.length)} of {citations.length} Historical Records
+                      </span>
+                      <div className="citations-toggle-links">
+                        <button type="button" className="btn-link" onClick={expandAllCitations}>Expand All</button>
+                        <span className="divider">•</span>
+                        <button type="button" className="btn-link" onClick={collapseAllCitations}>Collapse All</button>
                       </div>
-                    )}
-                  </div>
-
-                  <div className="important-disclaimer-box">
-                    <strong>Important Note on Evidence:</strong>
-                    <span>
-                      The original PolitiFact verdict displayed on each card evaluates the <em>historical statement</em> made in the past by that speaker, NOT the user&rsquo;s newly submitted claim. High semantic similarity indicates topical relevance, not automatic agreement or disagreement.
-                    </span>
-                  </div>
-
-                  {citations.length === 0 ? (
-                    <div className="empty-message-box">
-                      <p>No historical claims in the PolitiFact dataset met the relevance threshold for this query.</p>
                     </div>
-                  ) : (
-                    <div className="citations-list">
-                      {citations.map((item, idx) => {
+
+                    <div className="evidence-cards-stack">
+                      {(showAllCitations ? citations : citations.slice(0, 2)).map((item, idx) => {
                         const idKey = item.statement_id || idx;
                         const isExpanded = !collapsedCitations[idKey];
                         const verdictInfo = getLabelInfo(item.verdict);
                         const speakerName = formatSpeaker(item.speaker);
-                        const speakerJob = item.speaker_job ? `${item.speaker_job}` : "";
-                        const party = formatAffiliation(item.party_affiliation);
-                        const state = item.state_info ? `${item.state_info}` : "";
-                        const speakerContext = [speakerJob, party, state].filter(Boolean).join(" &bull; ");
-                        const similarityPercent = item.similarity_score !== undefined
-                          ? (Number(item.similarity_score) * 100).toFixed(1)
-                          : null;
+                        const speakerDetails = [
+                          item.speaker_job,
+                          formatAffiliation(item.party_affiliation),
+                          item.state_info,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ");
+                        const shortExplanation = getShortJustification(item.justification);
 
                         return (
-                          <div key={idKey} className="simple-citation-card">
-                            {/* Card Header */}
-                            <div
-                              className="citation-card-header"
+                          <article key={idKey} className="expandable-evidence-card">
+                            <header
+                              className="evidence-card-trigger"
                               onClick={() => toggleCitation(idKey)}
                               role="button"
                               tabIndex={0}
@@ -491,148 +469,112 @@ export default function AgenticAnalysisPage({
                                 if (e.key === "Enter" || e.key === " ") toggleCitation(idKey);
                               }}
                             >
-                              <div className="header-left">
-                                <span className="citation-idx">#{idx + 1}</span>
-                                <span
-                                  className="citation-verdict-chip"
-                                  style={{
-                                    backgroundColor: verdictInfo.bg,
-                                    color: verdictInfo.color,
-                                    borderColor: verdictInfo.border,
-                                  }}
-                                >
+                              <div className="evidence-trigger-left">
+                                <span className={`veracity-chip chip-${item.verdict}`}>
                                   Past Verdict: {verdictInfo.title}
                                 </span>
-                                {similarityPercent && (
-                                  <span className="citation-sim-chip">
-                                    {similarityPercent}% Topical Match
-                                  </span>
-                                )}
-                                {!isExpanded && (
-                                  <span className="citation-preview-quote">
-                                    &ldquo;{item.claim}&rdquo;
-                                  </span>
-                                )}
+                                <span className="evidence-claim-preview">
+                                  &ldquo;{cleanClaimText(item.claim)}&rdquo;
+                                </span>
                               </div>
-                              <span className="citation-toggle-icon">
-                                {isExpanded ? "▲" : "▼"}
+                              <span className="expand-chevron">
+                                {isExpanded ? "▲ Hide Details" : "▼ View Justification"}
                               </span>
-                            </div>
+                            </header>
 
-                            {/* Card Body (Collapsible) */}
+                            {/* Short takeaway visible when collapsed */}
+                            {!isExpanded && (
+                              <div className="evidence-short-takeaway">
+                                <span className="takeaway-label">Fact-Checker Summary:</span>
+                                <p>{shortExplanation}</p>
+                              </div>
+                            )}
+
+                            {/* Expanded Full Justification & Metadata */}
                             {isExpanded && (
-                              <div className="citation-card-body">
-                                {/* Neutral Relationship Indicator */}
-                                <div className="neutral-relationship-tag">
-                                  <span>📌</span>
-                                  <span>
-                                    Semantically related historical precedent; direct relevance to the submitted claim is evaluated in Agent D&rsquo;s combined synthesis.
-                                  </span>
-                                </div>
-
-                                <div className="citation-field">
-                                  <span className="field-title">Original Historical Statement:</span>
-                                  <blockquote className="field-quote">
-                                    &ldquo;{item.claim}&rdquo;
+                              <div className="evidence-card-expanded-body">
+                                <div className="evidence-field">
+                                  <span className="field-label">Original Statement:</span>
+                                  <blockquote className="historical-statement-quote">
+                                    &ldquo;{cleanClaimText(item.claim)}&rdquo;
                                   </blockquote>
                                 </div>
 
-                                <div className="citation-field">
-                                  <span className="field-title">Original Fact-Checker Justification:</span>
-                                  <div className="justification-text-box">
-                                    {item.justification ? (
-                                      <p>{item.justification}</p>
-                                    ) : (
-                                      <p className="missing-text-note">
-                                        No published journalist justification available for this record in the LIAR-PLUS dataset.
-                                      </p>
-                                    )}
-                                  </div>
+                                <div className="evidence-field">
+                                  <span className="field-label">Fact-Checker Finding &amp; Justification:</span>
+                                  <p className="justification-full-text">
+                                    {item.justification || "No published justification text available for this record."}
+                                  </p>
                                 </div>
 
-                                <div className="citation-meta-footer">
-                                  <span><strong>Speaker:</strong> {speakerName} {speakerContext && `(${speakerContext})`}</span>
+                                <footer className="evidence-meta-footer">
+                                  <span><strong>Speaker:</strong> {speakerName} {speakerDetails && `(${speakerDetails})`}</span>
                                   {item.context && <span><strong>Context:</strong> {item.context}</span>}
-                                  <span><strong>Source:</strong> LIAR-PLUS verified record ({item.statement_id || `rec-${idx}`})</span>
-                                </div>
+                                </footer>
                               </div>
                             )}
-                          </div>
+                          </article>
                         );
                       })}
                     </div>
-                  )}
-                </div>
+
+                    {/* View More / Show Less Toggle for records beyond top 2 */}
+                    {citations.length > 2 && (
+                      <div className="view-more-container">
+                        <button
+                          type="button"
+                          className="btn-view-more"
+                          onClick={() => setShowAllCitations(!showAllCitations)}
+                        >
+                          {showAllCitations ? "Show Less (Top 2 Only)" : `View More (${citations.length - 2} More Records)`}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </section>
           )}
 
           {/* =========================================================
-              SECTION 4: AGENT C - HISTORICAL SOCIAL MEDIA ANALYSIS
+              4. AGENT C: HISTORICAL SOCIAL INFLUENCE
           ========================================================= */}
-          <section className="simple-card agent-c-card">
-            <div className="simple-card-header">
-              <span className="card-number-tag">4</span>
-              <div>
-                <h2 className="card-title">Agent C &ndash; Historical Social Media Analysis (FakeNewsNet)</h2>
-                <span className="card-subtitle">
-                  Historical propagation kinetics and viral velocity in benchmark records
-                </span>
+          <section className="agent-result-card agent-c-card">
+            <div className="agent-card-header">
+              <div className="agent-header-titles">
+                <span className="agent-role-tag">Agent C</span>
+                <div>
+                  <h3 className="agent-title">Historical Social Influence</h3>
+                  <span className="agent-sub-title">FakeNewsNet Benchmark Cascade Matching</span>
+                </div>
               </div>
             </div>
 
-            <div className="simple-card-body">
-              {/* Disclaimer: Popularity != Factuality */}
-              <div className="social-disclaimer-banner">
-                <span className="banner-icon">ℹ️</span>
-                <div>
-                  <strong>Important Distinction:</strong> Virality does not establish factuality. Historical tweet counts and engagement velocity measure past public attention and circulation speed in benchmark records, NOT whether a statement is factually true.
-                </div>
-              </div>
-
+            <div className="agent-card-body">
               {matchedStories.length === 0 ? (
-                <div className="empty-social-box">
-                  <p>
-                    <strong>Historical social media data unavailable:</strong> No matching viral narratives found in the FakeNewsNet benchmark dataset.
-                  </p>
+                <div className="neutral-notice-box">
+                  <span className="notice-icon">ℹ️</span>
+                  <div>
+                    <strong>Benchmark data unavailable:</strong> No matching viral stories were found in our benchmark archive.
+                    <p className="notice-clarification">
+                      This means benchmark records are unavailable for this specific statement, not that the claim did not circulate online.
+                    </p>
+                  </div>
                 </div>
               ) : (
-                <div className="social-data-content">
-                  <div className="social-metrics-row">
-                    <div className="social-metric-box">
-                      <span className="sm-label">Engagement Velocity:</span>
-                      <span className="sm-value">
-                        {Number(historicalInfluence?.engagement_velocity || 0).toFixed(1)} tweets/hr
-                      </span>
-                    </div>
-                    <div className="social-metric-box">
-                      <span className="sm-label">Velocity Percentile:</span>
-                      <span className="sm-value">
-                        {Math.round(Number(historicalInfluence?.velocity_percentile || 0))}%
-                      </span>
-                    </div>
-                    <div className="social-metric-box">
-                      <span className="sm-label">Matched Benchmark Stories:</span>
-                      <span className="sm-value">{matchedStories.length}</span>
-                    </div>
-                  </div>
-
-                  <h4 className="matched-stories-heading">Matched Benchmark Stories in FakeNewsNet:</h4>
-                  <div className="matched-stories-grid">
+                <div className="social-activity-content">
+                  <p className="social-summary-p">
+                    Matched {matchedStories.length} related news narrative{matchedStories.length === 1 ? "" : "s"} in historical benchmark records:
+                  </p>
+                  <div className="social-stories-list">
                     {matchedStories.map((story, idx) => (
-                      <div key={idx} className="story-card">
-                        <div className="story-card-top">
-                          <strong className="story-title">{story.title}</strong>
-                          <span className={`story-label-pill ${story.label === "fake" ? "label-fake" : "label-real"}`}>
-                            {story.label === "fake" ? "Benchmark Fake" : "Benchmark Real"}
-                          </span>
+                      <div key={idx} className="social-story-row">
+                        <div className="story-info">
+                          <strong className="story-headline">&ldquo;{cleanClaimText(story.title || story.headline)}&rdquo;</strong>
                         </div>
-                        <div className="story-meta-stats">
-                          <span>Observed Tweets: <strong>{Number(story.total_tweets || 0).toLocaleString()}</strong></span>
-                          <span>First 24h: <strong>{Number(story.first_24h_tweets || 0).toLocaleString()}</strong></span>
-                          <span>Velocity: <strong>{Number(story.engagement_velocity || 0).toFixed(1)} tw/hr</strong></span>
-                          <span>Headline Similarity: <strong>{((story.similarity_score || 0) * 100).toFixed(1)}%</strong></span>
-                        </div>
+                        <span className={`story-type-badge ${story.label === "fake" ? "badge-false" : "badge-real"}`}>
+                          {story.label === "fake" ? "Past False Story" : "Past Verified Story"}
+                        </span>
                       </div>
                     ))}
                   </div>
@@ -642,422 +584,276 @@ export default function AgenticAnalysisPage({
           </section>
 
           {/* =========================================================
-              SECTION 5: AGENT D - THREE-AGENT CROSS-VERIFICATION & FINAL CONCLUSION
+              5. AGENT D: CROSS-VERIFICATION & FINAL ASSESSMENT
           ========================================================= */}
           {verification && (
-            <section className="simple-card agent-d-card">
-              <div className="simple-card-header">
-                <span className="card-number-tag final-tag">5</span>
-                <div>
-                  <h2 className="card-title">Agent D &ndash; Three-Agent Cross-Verification &amp; Final Conclusion</h2>
-                  <span className="card-subtitle">
-                    Cross-verification combining linguistic analysis (A), historical fact-checking (B), and benchmark social kinetics (C)
-                  </span>
+            <section className="agent-result-card conclusion-card agent-d-card">
+              <div className="agent-card-header">
+                <div className="agent-header-titles">
+                  <span className="agent-role-tag">Agent D</span>
+                  <div>
+                    <h3 className="agent-title">Cross-Verification &amp; Final Assessment</h3>
+                    <span className="agent-sub-title">Triangulated Multi-Agent Reasoning</span>
+                  </div>
                 </div>
               </div>
 
-              <div className="simple-card-body">
-                {/* 5A: How did the three agents contribute to the final decision? */}
-                <div className="agents-contribution-box">
-                  <h3 className="subheading-title">How did the three agents contribute to the final decision?</h3>
-                  <div className="three-agent-entries-grid">
-                    {/* Agent A Entry */}
-                    <div className="agent-contrib-card">
-                      <div className="contrib-header">
-                        <span className="step-badge">Agent A</span>
-                        <strong className="contrib-agent-name">Claim Classification (DistilBERT)</strong>
-                      </div>
-                      <p className="contrib-text">
-                        {agentContributions?.agent_a?.contribution || (
-                          <>
-                            Predicted <strong>{claimAnalysis?.label || "Unknown"}</strong> with {confidencePct}% confidence based on stylistic phrasing and sentence framing.
-                          </>
-                        )}
-                      </p>
-                    </div>
+              <div className="agent-card-body">
+                <p className="comparison-intro">
+                  Agent D genuinely compares the outputs of Agents A, B, and C to identify corroboration, conflicts, or data gaps:
+                </p>
 
-                    {/* Agent B Entry */}
-                    <div className="agent-contrib-card">
-                      <div className="contrib-header">
-                        <span className="step-badge">Agent B</span>
-                        <strong className="contrib-agent-name">Evidence RAG (LIAR-PLUS)</strong>
-                      </div>
-                      <p className="contrib-text">
-                        {agentContributions?.agent_b?.contribution || (
-                          isNoEvidence ? (
-                            "Found no relevant historical fact-checks in LIAR-PLUS; could not empirically confirm or dispute Agent A."
-                          ) : (
-                            <>
-                              Retrieved {relevantCount} verified relevant fact-check(s) with an aggregated stance of <strong>{stanceMeta.title}</strong>
-                              {aVsB?.status === "DISCREPANCY" ? " (disagreed with Agent A)." : " (agreed with Agent A)."}
-                            </>
-                          )
-                        )}
-                      </p>
-                    </div>
-
-                    {/* Agent C Entry */}
-                    <div className="agent-contrib-card">
-                      <div className="contrib-header">
-                        <span className="step-badge">Agent C</span>
-                        <strong className="contrib-agent-name">Historical Social Influence (FakeNewsNet)</strong>
-                      </div>
-                      <p className="contrib-text">
-                        {agentContributions?.agent_c?.contribution || (
-                          matchedStories.length > 0 ? (
-                            `Matched ${matchedStories.length} benchmark narrative(s) with ${Number(historicalInfluence?.engagement_velocity || 0).toFixed(1)} tweets/hr velocity, providing historical exposure context without altering factuality risk.`
-                          ) : (
-                            "No matching viral narratives found in FakeNewsNet; benchmark exposure is baseline and does not indicate historical viral contagion."
-                          )
-                        )}
-                      </p>
-                    </div>
+                {/* 3 Comparison Columns */}
+                <div className="findings-comparison-grid">
+                  <div className="comparison-column">
+                    <span className="col-agent-label">Agent A: Veracity Assessment</span>
+                    <strong className="col-agent-verdict">{claimAnalysis?.label || "Analyzed"}</strong>
+                    <p>
+                      {decisionBreakdown?.agent_a_role?.explanation ||
+                        `DistilBERT classified claim as '${claimAnalysis?.label || "Half-True"}' with ${confidencePercent}% confidence.`}
+                    </p>
                   </div>
-                </div>
 
-                {/* 5B: Final Combined Assessment */}
-                <div className="final-combined-section">
-                  <h3 className="subheading-title">Final Combined Assessment</h3>
-                  <div
-                    className="final-verdict-hero-box"
-                    style={{
-                      backgroundColor: riskMeta.bg,
-                      borderColor: riskMeta.border,
-                    }}
-                  >
-                    <div className="hero-top-row">
-                      <div>
-                        <span className="hero-label">Final Risk Assessment:</span>
-                        <h3 className="hero-risk-title" style={{ color: riskMeta.color }}>
-                          {riskMeta.title} ({riskScore} / 100)
-                        </h3>
-                      </div>
-                      <div className="hero-badges">
-                        <span
-                          className="hero-stance-pill"
-                          style={{
-                            backgroundColor: stanceMeta.bg,
-                            color: stanceMeta.color,
-                            borderColor: stanceMeta.border,
-                          }}
-                        >
-                          {stanceMeta.icon} {stanceMeta.title}
-                        </span>
-                        <span className="hero-uncertainty-pill">
-                          Uncertainty: {uncertaintyPct}% ({uncertaintyPct >= 65 ? "High" : uncertaintyPct >= 35 ? "Moderate" : "Low"})
-                        </span>
-                      </div>
-                    </div>
+                  <div className="comparison-column">
+                    <span className="col-agent-label">Agent B: Historical Evidence</span>
+                    <strong className="col-agent-verdict">{stanceMeta.title}</strong>
+                    <p>
+                      {decisionBreakdown?.agent_b_role?.explanation ||
+                        (isNoEvidence
+                          ? "No relevant historical fact-checks were available to corroborate or dispute."
+                          : `Retrieved ${relevantCount} historical fact-check(s).`)}
+                    </p>
+                  </div>
 
-                    {/* Short synthesized explanation combining all three outputs */}
-                    <p className="hero-explanation-p">
-                      {threeAgentSynth?.summary || verification?.summary || stanceMeta.desc}
+                  <div className="comparison-column">
+                    <span className="col-agent-label">Agent C: Social Influence</span>
+                    <strong className="col-agent-verdict">
+                      {matchedStories.length > 0 ? `${matchedStories.length} Matched Stories` : "Unavailable"}
+                    </strong>
+                    <p>
+                      {decisionBreakdown?.agent_c_role?.explanation ||
+                        (matchedStories.length > 0
+                          ? `Identified ${matchedStories.length} matched benchmark narrative(s) in historical records.`
+                          : "Benchmark data unavailable: No matching viral stories in FakeNewsNet.")}
                     </p>
                   </div>
                 </div>
 
-                {/* Cross-Verification Pair Summaries (A vs B and B vs C) */}
-                <div className="cross-pairs-grid">
-                  {aVsB && (
-                    <div className={`cross-pair-box ${aVsB.status === "DISCREPANCY" ? "pair-alert" : aVsB.status === "CONCURRENCE" ? "pair-success" : "pair-neutral"}`}>
-                      <strong>A vs B Assessment (Model vs Evidence):</strong>
-                      <p>{aVsB.summary}</p>
-                    </div>
-                  )}
-                  {bVsC && (
-                    <div className="cross-pair-box pair-neutral">
-                      <strong>B vs C Assessment (Evidence vs Historical Exposure Context):</strong>
-                      <p>{bVsC.summary}</p>
-                    </div>
-                  )}
-                </div>
-
-                {/* Key Verification Findings from Backend */}
-                {verification.findings && verification.findings.length > 0 && (
-                  <div className="findings-section">
-                    <h3 className="subheading-title">Key Verification Findings:</h3>
-                    <ul className="simple-findings-list">
-                      {verification.findings.map((finding, idx) => (
-                        <li key={idx}>
-                          <span className="bullet-icon">&bull;</span>
-                          <span>{finding}</span>
-                        </li>
-                      ))}
-                    </ul>
+                {/* Agreement / Discrepancy Alert */}
+                {decisionBreakdown?.agreement_analysis ? (
+                  <div className={`comparison-alert-box ${aVsB?.status === "DISCREPANCY" ? "alert-discrepancy" : "alert-concurrence"}`}>
+                    <strong>Multi-Agent Agreement Analysis:</strong> {decisionBreakdown.agreement_analysis}
                   </div>
-                )}
-
-                {/* Limitations and Knowledge Gaps */}
-                {verification.uncertainties && verification.uncertainties.length > 0 && (
-                  <div className="uncertainties-section">
-                    <h3 className="subheading-title">Evidence Limitations &amp; Knowledge Gaps:</h3>
-                    <ul className="simple-uncertainties-list">
-                      {verification.uncertainties.map((item, idx) => (
-                        <li key={idx}>
-                          <span className="uncertainty-icon">⚠️</span>
-                          <span>{item}</span>
-                        </li>
-                      ))}
-                    </ul>
+                ) : aVsB?.status === "DISCREPANCY" ? (
+                  <div className="comparison-alert-box alert-discrepancy">
+                    <strong>Comparison Note:</strong> The classifier prediction and historical fact-checking evidence disagree. Verified historical evidence takes precedence over statistical classification patterns.
                   </div>
-                )}
+                ) : null}
               </div>
             </section>
           )}
 
           {/* =========================================================
-              SECTION 6: AGENT E - ACTIONABLE RECOMMENDATIONS
+              6. AGENT E: ADVISORY RECOMMENDATIONS
           ========================================================= */}
-          {mitigation && (
-            <section className="simple-card agent-e-card">
-              <div className="simple-card-header">
-                <span className="card-number-tag">6</span>
-                <div>
-                  <h2 className="card-title">Agent E &ndash; Actionable Recommendations</h2>
-                  <span className="card-subtitle">
-                    Guidance for readers, journalists, and reviewers based on the assessment
-                  </span>
+          {recommendations && recommendations.length > 0 && (
+            <section className="agent-result-card next-steps-card agent-e-card">
+              <div className="agent-card-header">
+                <div className="agent-header-titles">
+                  <span className="agent-role-tag">Agent E</span>
+                  <div>
+                    <h3 className="agent-title">Advisory Recommendations</h3>
+                    <span className="agent-sub-title">Actionable Verification Guidance</span>
+                  </div>
                 </div>
               </div>
 
-              <div className="simple-card-body">
-                <p className="recommendations-intro">
-                  These recommendations provide practical guidance for readers and evaluators when reviewing or sharing this claim.
+              <div className="agent-card-body">
+                <p className="next-steps-intro">
+                  Recommended verification actions for readers and reviewers before sharing or relying on this claim:
                 </p>
 
-                {recommendations.length === 0 ? (
-                  <div className="empty-message-box">
-                    <p>No immediate intervention required. The statement is within standard informational bounds.</p>
-                  </div>
-                ) : (
-                  <div className="recommendations-list">
-                    {recommendations.map((rec, idx) => (
-                      <div key={idx} className="simple-rec-card">
-                        <div className="rec-top-row">
-                          <span className={`priority-badge priority-${rec.priority?.toLowerCase()}`}>
-                            {rec.priority?.toUpperCase()} PRIORITY
-                          </span>
-                          <span className="rec-target-badge">
-                            Target: {rec.target || "Reader / Fact-Checker"}
-                          </span>
+                <div className="recommendations-stack">
+                  {recommendations.map((rec, idx) => {
+                    const hasRationale = Boolean(rec.rationale && String(rec.rationale).trim());
+                    const hasDetails = Boolean(rec.details && String(rec.details).trim());
+
+                    return (
+                      <div key={idx} className="clean-rec-card">
+                        <div className="rec-header">
+                          {rec.priority && (
+                            <span className={`rec-priority-pill priority-${String(rec.priority).toLowerCase()}`}>
+                              {String(rec.priority).toUpperCase()} PRIORITY
+                            </span>
+                          )}
+                          {rec.target && (
+                            <span className="rec-target-label">For {rec.target}</span>
+                          )}
                         </div>
-                        <h4 className="rec-action-title">{rec.action}</h4>
-                        <div className="rec-detail-row">
-                          <strong>Why:</strong>
-                          <p>{rec.rationale}</p>
-                        </div>
-                        <div className="rec-detail-row">
-                          <strong>Suggested Action:</strong>
-                          <p>{rec.details}</p>
-                        </div>
+
+                        <h4 className="rec-action-heading">{rec.action}</h4>
+
+                        {hasRationale && (
+                          <div className="rec-field">
+                            <strong>Why:</strong>
+                            <p>{rec.rationale}</p>
+                          </div>
+                        )}
+
+                        {hasDetails && (
+                          <div className="rec-field">
+                            <strong>Suggested Action:</strong>
+                            <p>{rec.details}</p>
+                          </div>
+                        )}
                       </div>
-                    ))}
-                  </div>
-                )}
+                    );
+                  })}
+                </div>
               </div>
             </section>
           )}
 
           {/* =========================================================
-              SECTION 7: COLLAPSED ADVANCED TECHNICAL DETAILS
+              7. FINAL VERIFICATION RESULT (AT THE VERY END)
           ========================================================= */}
-          <section className="technical-details-container">
-            <button
-              type="button"
-              className="technical-toggle-btn"
-              onClick={() => setShowTechnicalDetails((prev) => !prev)}
+          {verification && (
+            <section
+              className="agent-result-card final-verification-result-card"
+              style={{
+                borderLeft: `5px solid ${finalVerdictBadge.color}`,
+                backgroundColor: finalVerdictBadge.bg,
+              }}
             >
-              <span>{showTechnicalDetails ? "▲ Hide Advanced Technical Details" : "▼ View Advanced Technical Details (For Examiners & Technical Review)"}</span>
-              <span className="toggle-hint">Execution trace, probability distributions, entity decomposition &amp; JSON</span>
-            </button>
+              <div className="final-result-top-banner">
+                <span
+                  className="final-result-pill"
+                  style={{
+                    backgroundColor: finalVerdictBadge.badgeBg,
+                    color: finalVerdictBadge.badgeColor,
+                    borderColor: finalVerdictBadge.badgeBorder,
+                  }}
+                >
+                  {finalVerdictBadge.icon} Final Verification Result
+                </span>
+                <h2 className="final-verdict-heading" style={{ color: finalVerdictBadge.color }}>
+                  {finalVerdictText}
+                </h2>
+              </div>
 
-            {showTechnicalDetails && (
-              <div className="technical-content-panel">
-                {/* 1. Agent Execution Trace */}
-                <div className="tech-subsection">
-                  <h3 className="tech-heading">1. Multi-Agent Execution Telemetry (5 Agents)</h3>
-                  <div className="trace-table-container">
-                    <table className="trace-table">
-                      <thead>
-                        <tr>
-                          <th>Agent ID</th>
-                          <th>Agent Name</th>
-                          <th>Status</th>
-                          <th>Latency (ms)</th>
-                          <th>Summary</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {trace.map((t, idx) => (
-                          <tr key={t.agent_id || idx}>
-                            <td><strong>{t.agent_id}</strong></td>
-                            <td>{t.agent_name || t.agent_id}</td>
-                            <td>
-                              <span className={`status-pill ${t.status === "completed" ? "online" : "offline"}`}>
-                                {t.status === "completed" ? "✓ Completed" : "⚠ Error / Fallback"}
-                              </span>
-                            </td>
-                            <td>{t.duration_ms ? `${t.duration_ms.toFixed(0)} ms` : "N/A"}</td>
-                            <td>{t.summary}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+              <p className="final-verdict-rationale-text">
+                {decisionBreakdown?.verdict_rationale ||
+                  threeAgentSynth?.summary ||
+                  verification?.summary ||
+                  finalVerdictBadge.desc}
+              </p>
+
+              {/* 3 Structured Details Cards */}
+              <div className="final-breakdown-trio-grid">
+                <div className="trio-card">
+                  <span className="trio-kicker">Evidence Status</span>
+                  <strong className="trio-title">{decisionBreakdown?.evidence_status || stanceMeta.title}</strong>
+                  <p className="trio-text">
+                    {stanceMeta.desc}
+                  </p>
                 </div>
 
-                {/* 2. Technical Cross-Verification Metrics */}
-                {verification && (
-                  <div className="tech-subsection">
-                    <h3 className="tech-heading">2. Cross-Verification Mathematical Metrics</h3>
-                    <div className="tech-two-col">
-                      <div className="tech-box">
-                        <h4>A vs B Model-Evidence Divergence</h4>
-                        <p style={{ margin: "4px 0", fontSize: "12px", color: "var(--text-secondary)" }}>
-                          Jensen-Shannon Divergence <em>D</em><sub>JS</sub>(p<sub>A</sub> &parallel; p<sub>B</sub>):{" "}
-                          <strong>{verification.conflict_score !== undefined ? Number(verification.conflict_score).toFixed(4) : "0.0000"}</strong>
-                        </p>
-                        <p style={{ margin: "4px 0", fontSize: "11px", color: "var(--text-muted)" }}>
-                          Threshold: &ge; 0.35 indicates statistically significant discrepancy between linguistic classifier prior and empirical fact-checks.
-                        </p>
-                      </div>
-
-                      <div className="tech-box">
-                        <h4>Historical Social Exposure Kinetics</h4>
-                        <p style={{ margin: "4px 0", fontSize: "12px", color: "var(--text-secondary)" }}>
-                          Exposure Tier: <strong>{verification.historical_exposure_tier || "BASELINE_OR_ISOLATED"}</strong>
-                        </p>
-                        <p style={{ margin: "4px 0", fontSize: "11px", color: "var(--text-muted)" }}>
-                          Virality Decoupling: Social kinetics reflect past FakeNewsNet benchmark spread and are strictly decoupled from factuality risk calculation.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* 3. Probability Distributions */}
-                <div className="tech-subsection">
-                  <h3 className="tech-heading">3. Probability Distributions</h3>
-                  <div className="tech-two-col">
-                    {/* Agent A Probabilities */}
-                    {claimAnalysis?.probabilities && (
-                      <div className="tech-box">
-                        <h4>Agent A (DistilBERT Prior)</h4>
-                        <div className="prob-rows">
-                          {Object.entries(claimAnalysis.probabilities).map(([k, v]) => (
-                            <div key={k} className="prob-metric-row">
-                              <span className="prob-k">{k}:</span>
-                              <div className="prob-track-mini">
-                                <div className="prob-fill-mini" style={{ width: `${Math.max(3, Number(v) * 100)}%` }} />
-                              </div>
-                              <span className="prob-v">{(Number(v) * 100).toFixed(1)}%</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
+                <div className="trio-card">
+                  <span className="trio-kicker">Missing Information</span>
+                  <strong className="trio-title">Unarchived Elements</strong>
+                  <ul className="trio-list">
+                    {decisionBreakdown?.missing_information && decisionBreakdown.missing_information.length > 0 ? (
+                      decisionBreakdown.missing_information.map((item, i) => <li key={i}>{item}</li>)
+                    ) : (
+                      <li>No major informational gaps identified in benchmark records.</li>
                     )}
-
-                    {/* Agent D Synthesized Probabilities */}
-                    {verification?.synthesized_probabilities && (
-                      <div className="tech-box">
-                        <h4>Agent D (Fused Synthesis)</h4>
-                        <div className="prob-rows">
-                          {Object.entries(verification.synthesized_probabilities).map(([k, v]) => (
-                            <div key={k} className="prob-metric-row">
-                              <span className="prob-k">{k}:</span>
-                              <div className="prob-track-mini">
-                                <div className="prob-fill-mini" style={{ width: `${Math.max(3, Number(v) * 100)}%` }} />
-                              </div>
-                              <span className="prob-v">{(Number(v) * 100).toFixed(1)}%</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                  </ul>
                 </div>
 
-                {/* 4. Extracted Policy Elements */}
-                {claimAnalysis?.decomposed_elements && (
-                  <div className="tech-subsection">
-                    <h3 className="tech-heading">4. Extracted Policy Elements (Agent A Decomposition)</h3>
-                    <div className="entity-tags-grid">
-                      <div className="entity-group">
-                        <strong>Monetary Figures:</strong>
-                        <div className="tags-flex">
-                          {claimAnalysis.decomposed_elements.monetary_amounts?.length > 0 ? (
-                            claimAnalysis.decomposed_elements.monetary_amounts.map((m, i) => (
-                              <span key={i} className="tech-pill">{m}</span>
-                            ))
-                          ) : (
-                            <span className="tech-empty">None detected</span>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="entity-group">
-                        <strong>Percentages &amp; Rates:</strong>
-                        <div className="tags-flex">
-                          {claimAnalysis.decomposed_elements.percentages?.length > 0 ? (
-                            claimAnalysis.decomposed_elements.percentages.map((p, i) => (
-                              <span key={i} className="tech-pill">{p}</span>
-                            ))
-                          ) : (
-                            <span className="tech-empty">None detected</span>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="entity-group">
-                        <strong>Agencies &amp; Programs:</strong>
-                        <div className="tags-flex">
-                          {claimAnalysis.decomposed_elements.policy_agencies?.length > 0 ? (
-                            claimAnalysis.decomposed_elements.policy_agencies.map((a, i) => (
-                              <span key={i} className="tech-pill">{a}</span>
-                            ))
-                          ) : (
-                            <span className="tech-empty">None detected</span>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="entity-group">
-                        <strong>Comparative Terms:</strong>
-                        <div className="tags-flex">
-                          {claimAnalysis.decomposed_elements.comparative_terms?.length > 0 ? (
-                            claimAnalysis.decomposed_elements.comparative_terms.map((t, i) => (
-                              <span key={i} className="tech-pill">{t}</span>
-                            ))
-                          ) : (
-                            <span className="tech-empty">None detected</span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* 5. Raw JSON Inspection */}
-                <div className="tech-subsection">
-                  <div className="json-header-row">
-                    <h3 className="tech-heading">5. Full API Response Payload (JSON)</h3>
-                    <button
-                      type="button"
-                      className="simple-text-btn"
-                      onClick={() => setShowRawJson((prev) => !prev)}
-                    >
-                      {showRawJson ? "Hide Raw JSON" : "Show Raw JSON"}
-                    </button>
-                  </div>
-                  {showRawJson && (
-                    <pre className="raw-json-block">
-                      {JSON.stringify(agentData, null, 2)}
-                    </pre>
-                  )}
+                <div className="trio-card">
+                  <span className="trio-kicker">What You Should Verify Next</span>
+                  <strong className="trio-title">Actionable Checks</strong>
+                  <ul className="trio-list">
+                    {decisionBreakdown?.what_to_verify_next && decisionBreakdown.what_to_verify_next.length > 0 ? (
+                      decisionBreakdown.what_to_verify_next.map((item, i) => <li key={i}>{item}</li>)
+                    ) : (
+                      <li>Check official primary agency sources (CBO, BLS, IRS).</li>
+                    )}
+                  </ul>
                 </div>
               </div>
-            )}
-          </section>
+
+              {/* Optional Expandable Technical Details Section */}
+              <div className="technical-details-toggle-container">
+                <button
+                  type="button"
+                  className="btn-technical-toggle"
+                  onClick={() => setShowTechnicalDetails(!showTechnicalDetails)}
+                >
+                  {showTechnicalDetails ? "▲ Hide Technical Details" : "▼ Show Technical Details (Risk Weights & Metrics)"}
+                </button>
+
+                {showTechnicalDetails && (
+                  <div className="technical-details-expanded-panel">
+                    <div className="tech-metrics-grid">
+                      <div className="tech-metric-box">
+                        <span className="tech-metric-name">Composite Risk Score</span>
+                        <strong className="tech-metric-val">{verification.composite_risk_score} / 100</strong>
+                        <span className="tech-metric-sub">{verification.risk_level?.replace(/_/g, " ")}</span>
+                      </div>
+
+                      <div className="tech-metric-box">
+                        <span className="tech-metric-name">Epistemic Uncertainty</span>
+                        <strong className="tech-metric-val">{((Number(verification.uncertainty_score) || 0) * 100).toFixed(0)}%</strong>
+                        <span className="tech-metric-sub">Distance from uniform + scarcity</span>
+                      </div>
+
+                      <div className="tech-metric-box">
+                        <span className="tech-metric-name">Evidence Mass &amp; Weight</span>
+                        <strong className="tech-metric-val">
+                          {decisionBreakdown?.technical_details?.evidence_weight_pct ?? 65}% Evidence
+                        </strong>
+                        <span className="tech-metric-sub">
+                          Classifier Prior: {decisionBreakdown?.technical_details?.classifier_weight_pct ?? 35}%
+                        </span>
+                      </div>
+
+                      <div className="tech-metric-box">
+                        <span className="tech-metric-name">Jensen-Shannon Divergence</span>
+                        <strong className="tech-metric-val">
+                          {verification.conflict_score !== undefined ? verification.conflict_score.toFixed(3) : "0.000"}
+                        </strong>
+                        <span className="tech-metric-sub">Model vs Evidence distance</span>
+                      </div>
+                    </div>
+
+                    {verification.synthesized_probabilities && (
+                      <div className="tech-probabilities-row">
+                        <span className="tech-prob-label">Synthesized Belief Distribution:</span>
+                        <div className="tech-prob-pills">
+                          <span className="prob-pill pill-misleading">
+                            Misleading: {(verification.synthesized_probabilities.Misleading * 100).toFixed(1)}%
+                          </span>
+                          <span className="prob-pill pill-half-true">
+                            Half-True: {(verification.synthesized_probabilities["Half-True"] * 100).toFixed(1)}%
+                          </span>
+                          <span className="prob-pill pill-factual">
+                            Factual: {(verification.synthesized_probabilities.Factual * 100).toFixed(1)}%
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+                    {agentData.risk_score_breakdown?.explanation && (
+                      <p className="tech-explanation-note">
+                        {agentData.risk_score_breakdown.explanation}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            </section>
+          )}
         </div>
       )}
     </div>

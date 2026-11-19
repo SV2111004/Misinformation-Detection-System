@@ -62,155 +62,113 @@ export default function DashboardPage({ onNavigate, history = [] }) {
 
   const featureCards = [
     {
+      id: "agentic-analysis",
+      path: "/agentic-analysis",
+      title: "Multi-Agent Workflow",
+      description:
+        "Run an orchestrated multi-agent pipeline synthesizing linguistic classification, empirical fact-checking evidence, and social exposure signals.",
+      actionText: "Launch Workflow",
+    },
+    {
       id: "claim-analysis",
       path: "/claim-analysis",
       title: "Claim Classifier",
-      badge: "Socio-Economic",
       description:
-        "Evaluate political statements within the canonical Socio-Economic & Domestic Public Welfare Policy domain (3-Class: Misleading, Half-True, Factual).",
-      actionText: "Open Classifier →",
-      meta: "Target Domain · 3-Class Veracity",
+        "Evaluate individual statements against verified truthfulness categories with model confidence and class probability distributions.",
+      actionText: "Classify Claims",
     },
     {
       id: "evidence",
       path: "/evidence",
       title: "Evidence & RAG",
-      badge: "ChromaDB",
       description:
-        "Retrieve historical PolitiFact justifications and context from 5,562 canonical training records using semantic vector search.",
-      actionText: "Search Evidence →",
-      meta: "Socioeconomic · ChromaDB RAG",
-    },
-    {
-      id: "agentic-analysis",
-      path: "/agentic-analysis",
-      title: "Multi-Agent Workflow",
-      badge: "Agentic AI",
-      description:
-        "Orchestrate 5 specialized agents across claim classification, RAG retrieval, social signals, uncertainty quantification, and advisory mitigation.",
-      actionText: "Run Agent Pipeline →",
-      meta: "5 Specialized Working Agents",
+        "Search historical fact-checking rulings, journalist justifications, and precedent statements through semantic retrieval.",
+      actionText: "Search Evidence",
     },
     {
       id: "influence-analysis",
       path: "/influence-analysis",
-      title: "Social Influence (FakeNewsNet)",
-      badge: "Engagement",
+      title: "Social Influence",
       description:
-        "Analyze historical Twitter engagement volumes, domain patterns, and decoded Snowflake temporal propagation metrics from FakeNewsNet.",
-      actionText: "View Social Signals →",
-      meta: "FakeNewsNet · Snowflake IDs",
+        "Examine historical tweet engagement volumes, engagement velocity, and decoded Snowflake propagation lifespans for news stories.",
+      actionText: "View Social Signals",
     },
     {
       id: "social-network",
       path: "/social-network",
-      title: "Propagation Graph (Twitter15/16)",
-      badge: "SNA Graph",
+      title: "Propagation Graph",
       description:
-        "Reconstruct observed user-to-user rumor propagation trees into an interactive directed radial graph with depth and amplification inspection.",
-      actionText: "Explore Network Graph →",
-      meta: "Twitter15/16 · Directed Trees",
+        "Explore interactive directed diffusion trees showing observed user-to-user rumor forwarding relationships and cascade depth.",
+      actionText: "Explore Graph",
     },
     {
       id: "propagation-analysis",
       path: "/propagation-analysis",
-      title: "Cascade Kinetics (Twitter15/16)",
-      badge: "Diffusion",
+      title: "Cascade Kinetics",
       description:
-        "Examine cascade size, propagation depth hops, time-delay statistics, and cumulative adoption trajectory curves over time.",
-      actionText: "Analyze Cascade Kinetics →",
-      meta: "Depth Levels · Timeline Curves",
+        "Analyze cascade size, forwarding depth levels, delay intervals, and cumulative adoption trajectory curves over time.",
+      actionText: "Analyze Kinetics",
     },
   ];
 
   return (
     <div className="page-container dashboard-page">
-      {/* Header Banner */}
-      <section className="dashboard-hero">
-        <div className="hero-content">
-          <span className="hero-eyebrow">RESEARCH &amp; VERIFICATION SYSTEM</span>
-          <h1>Political Misinformation Detection &amp; Diffusion Analysis</h1>
-          <p>
-            An end-to-end software platform combining transformer-based neural classification,
-            semantic ChromaDB evidence retrieval, multi-agent synthesis, and observed social network propagation analysis.
-          </p>
+      {/* Platform Header */}
+      <div className="page-header">
+        <h1>Platform Overview</h1>
+        <p className="page-description">
+          Unified intelligence platform for claim credibility verification, historical evidence retrieval, and social network diffusion analysis.
+        </p>
+      </div>
+
+      {/* High-Level Corpus Stats Row */}
+      <section className="platform-stats-row" aria-label="System Metrics">
+        <div className="platform-stat-card">
+          <span className="stat-label">Monitored Claims</span>
+          <strong className="stat-value">
+            {domainStats?.total_records
+              ? domainStats.total_records.toLocaleString()
+              : "6,944"}
+          </strong>
+          <span className="stat-context">Socio-Economic Domain</span>
         </div>
 
-        {/* System Health Strip */}
-        <div className="system-health-card">
-          <div className="health-card-header">
-            <h4>System Architecture &amp; Benchmark Readiness</h4>
-            <span className={`status-pill ${health?.status === "ok" ? "online" : "offline"}`}>
-              {health?.status === "ok" ? "All Modules Loaded" : "System Ready"}
-            </span>
-          </div>
+        <div className="platform-stat-card">
+          <span className="stat-label">Verified Evidence</span>
+          <strong className="stat-value">
+            {evidenceStats?.total_indexed
+              ? evidenceStats.total_indexed.toLocaleString()
+              : "5,562"}
+          </strong>
+          <span className="stat-context">Historical Fact-Checks</span>
+        </div>
 
-          <div className="health-grid">
-            <div className="health-item">
-              <span className="health-label">Target Policy Domain</span>
-              <strong className="health-val">
-                {domainStats?.total_records
-                  ? `Socio-Economic (${domainStats.total_records.toLocaleString()})`
-                  : "Socio-Economic (6,944)"}
-              </strong>
-            </div>
-            <div className="health-item">
-              <span className="health-label">Truth Formulation</span>
-              <strong className="health-val">3-Class (Misleading/Half/Factual)</strong>
-            </div>
-            <div className="health-item">
-              <span className="health-label">Primary Classifier</span>
-              <strong className="health-val">
-                {health?.distilbert_loaded ? "DistilBERT (Ready)" : "DistilBERT (CPU)"}
-              </strong>
-            </div>
-            <div className="health-item">
-              <span className="health-label">Baseline Classifier</span>
-              <strong className="health-val">
-                {health?.socioeconomic_baseline_loaded ? "Socio-Economic 3-Class (Ready)" : "TF-IDF + LR (Ready)"}
-              </strong>
-            </div>
-            <div className="health-item">
-              <span className="health-label">Evidence Store</span>
-              <strong className="health-val">
-                {evidenceStats?.total_indexed
-                  ? `${evidenceStats.total_indexed.toLocaleString()} Records`
-                  : "5,562 Records (Indexed)"}
-              </strong>
-            </div>
-            <div className="health-item">
-              <span className="health-label">FakeNewsNet Corpus</span>
-              <strong className="health-val">
-                {influenceStats?.total_stories
-                  ? `${influenceStats.total_stories.toLocaleString()} Stories`
-                  : "1,056 Stories"}
-              </strong>
-            </div>
-            <div className="health-item">
-              <span className="health-label">SNA Benchmarks</span>
-              <strong className="health-val">
-                {snaDatasets.length > 0
-                  ? "Twitter15 & Twitter16 (2,308 Trees)"
-                  : "Twitter15 & 16 Ready"}
-              </strong>
-            </div>
-            <div className="health-item">
-              <span className="health-label">Agent Orchestrator</span>
-              <strong className="health-val">5 Agents Connected</strong>
-            </div>
-          </div>
+        <div className="platform-stat-card">
+          <span className="stat-label">Media Corpus</span>
+          <strong className="stat-value">
+            {influenceStats?.total_stories
+              ? influenceStats.total_stories.toLocaleString()
+              : "1,056"}
+          </strong>
+          <span className="stat-context">Analyzed News Stories</span>
+        </div>
+
+        <div className="platform-stat-card">
+          <span className="stat-label">Diffusion Cascades</span>
+          <strong className="stat-value">
+            {snaDatasets.length > 0 ? "2,308" : "2,308"}
+          </strong>
+          <span className="stat-context">Propagation Trees</span>
         </div>
       </section>
 
       {/* Feature Modules Grid */}
-      <section className="dashboard-modules-section">
-        <div className="section-title-row">
-          <div>
-            <h2>Functional Verification Modules</h2>
-            <p className="section-subtitle">
-              Select a specialized module below to perform analysis on political claims or inspect propagation benchmarks.
-            </p>
-          </div>
+      <section className="dashboard-section">
+        <div className="section-header">
+          <h2>Analysis Modules</h2>
+          <p className="section-subtext">
+            Select a specialized module to evaluate statements, inspect evidence, or analyze network diffusion.
+          </p>
         </div>
 
         <div className="modules-grid">
@@ -228,18 +186,15 @@ export default function DashboardPage({ onNavigate, history = [] }) {
                 }
               }}
             >
-              <div className="module-card-top">
-                <span className="module-badge">{card.badge}</span>
-                <span className="module-meta-pill">{card.meta}</span>
-              </div>
-
               <div className="module-card-body">
                 <h3>{card.title}</h3>
                 <p>{card.description}</p>
               </div>
 
               <div className="module-card-footer">
-                <span className="module-action-link">{card.actionText}</span>
+                <span className="module-action-link">
+                  {card.actionText} <span aria-hidden="true">→</span>
+                </span>
               </div>
             </article>
           ))}
@@ -247,22 +202,24 @@ export default function DashboardPage({ onNavigate, history = [] }) {
       </section>
 
       {/* Recent History Table */}
-      <section className="dashboard-history-section">
-        <div className="section-title-row">
+      <section className="dashboard-section dashboard-history-section">
+        <div className="section-header-row">
           <div>
             <h2>Recent Claim Evaluations</h2>
-            <p className="section-subtitle">
-              Statements recently evaluated by the primary and baseline classifiers in this session.
+            <p className="section-subtext">
+              Statements evaluated during your current session.
             </p>
           </div>
-          <span className="history-count-badge">{history.length} Saved In Session</span>
+          {history.length > 0 && (
+            <span className="history-count-badge">{history.length} Saved</span>
+          )}
         </div>
 
         {history.length === 0 ? (
           <div className="empty-state-box">
             <p>No claims evaluated yet in this session.</p>
             <span className="empty-subtext">
-              Jump to the <button type="button" className="inline-link" onClick={() => onNavigate("/claim-analysis")}>Claim Classifier</button> to evaluate a political statement.
+              Enter a statement in the <button type="button" className="inline-link" onClick={() => onNavigate("/claim-analysis")}>Claim Classifier</button> to see results here.
             </span>
           </div>
         ) : (
@@ -272,9 +229,9 @@ export default function DashboardPage({ onNavigate, history = [] }) {
                 <tr>
                   <th>Timestamp</th>
                   <th>Submitted Statement</th>
-                  <th>DistilBERT Verdict</th>
-                  <th>Baseline (TF-IDF)</th>
-                  <th>Action</th>
+                  <th>Classification</th>
+                  <th>Baseline</th>
+                  <th style={{ textAlign: "right" }}>Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -292,7 +249,7 @@ export default function DashboardPage({ onNavigate, history = [] }) {
                         {formatLabel(item.baseline)}
                       </span>
                     </td>
-                    <td>
+                    <td style={{ textAlign: "right" }}>
                       <button
                         type="button"
                         className="btn-table-action"

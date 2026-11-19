@@ -7,7 +7,7 @@ export const LABEL_INFO = {
   // Socio-Economic 3-Class Approved Veracity Labels
   misleading: {
     title: "Misleading",
-    description: "Socio-Economic domain benchmark classification (Substantively False / Fabricated)",
+    description: "Statement conflicts with verified evidence or official figures.",
     level: 2,
     color: "#dc2626",
     bg: "#fef2f2",
@@ -15,7 +15,7 @@ export const LABEL_INFO = {
   },
   "half-true": {
     title: "Half-True",
-    description: "Socio-Economic domain benchmark classification (Partially Accurate with Omitted Context)",
+    description: "Statement contains elements of truth but omits important context.",
     level: 4,
     color: "#d97706",
     bg: "#fffbeb",
@@ -23,7 +23,7 @@ export const LABEL_INFO = {
   },
   factual: {
     title: "Factual",
-    description: "Socio-Economic domain benchmark classification (Substantially Accurate & Corroborated)",
+    description: "Statement is accurate and corroborated by verified records.",
     level: 6,
     color: "#16a34a",
     bg: "#f0fdf4",

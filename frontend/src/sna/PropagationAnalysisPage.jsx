@@ -42,18 +42,20 @@ export default function PropagationAnalysisPage({ onBack }) {
   }, [dataset, postId]);
 
   return (
-    <div className="sna-page-container">
+    <div className="page-container sna-page-container">
       {/* Page Header */}
-      <div className="sna-page-header">
-        <button type="button" className="sna-back-button" onClick={onBack}>
-          ← Back to Dashboard
-        </button>
-        <div className="sna-header-titles">
-          <h1>Propagation Analysis</h1>
-          <p>
-            Summarizes how the selected post propagated through the observed cascade across depth levels and time.
-          </p>
+      <div className="page-header">
+        <div className="header-breadcrumbs">
+          <button type="button" className="crumb-link" onClick={onBack}>
+            Dashboard
+          </button>
+          <span className="crumb-sep">/</span>
+          <span className="crumb-current">Cascade Kinetics</span>
         </div>
+        <h1>Cascade Kinetics</h1>
+        <p className="page-description">
+          Analyze cascade size, forwarding depth levels, delay intervals, and cumulative adoption trajectory curves over time.
+        </p>
       </div>
 
       {/* Dataset & Post Selection */}
@@ -265,14 +267,6 @@ export default function PropagationAnalysisPage({ onBack }) {
           </div>
         </>
       )}
-
-      {/* Academic Note Footer */}
-      <div className="sna-footnote">
-        <p>
-          Note: Propagation statistics reflect recorded events in the benchmark dataset. They measure forwarding dynamics
-          among participating users and do not represent total impressions or passive readership.
-        </p>
-      </div>
     </div>
   );
 }

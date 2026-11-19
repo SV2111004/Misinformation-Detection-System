@@ -206,6 +206,9 @@ class EvidenceRAGAgent:
                     "subject": res.get("subject", ""),
                 })
 
+            # Ensure highest relevance historical fact-checks are first
+            citations.sort(key=lambda x: x.get("similarity_score", 0.0), reverse=True)
+
             has_conflicts = len(set(verdict_counts.keys())) > 1
             duration_ms = round((time.time() - start_time) * 1000, 2)
             summary = (
@@ -297,10 +300,13 @@ class HistoricalInfluenceAgent:
                     percentile = 55.0
 
             duration_ms = round((time.time() - start_time) * 1000, 2)
-            summary = (
-                f"Matched {len(matched)} historical FakeNewsNet stories. "
-                f"Observed propagation velocity: {velocity} ({percentile:.0f}th percentile)."
-            )
+            if matched:
+                summary = (
+                    f"Matched {len(matched)} historical FakeNewsNet stories. "
+                    f"Observed propagation velocity: {velocity} ({percentile:.0f}th percentile)."
+                )
+            else:
+                summary = "Benchmark data unavailable: No matching viral stories found in benchmark records."
 
             return {
                 "agent_id": self.agent_id,
@@ -749,6 +755,7 @@ class VerificationRiskAgent:
         pred_conf: float,
         top_stance: str,
         relevant_count: int,
+        total_weight: float,
         exposure_tier: str,
         composite_risk: float,
         risk_level: str,
@@ -756,23 +763,26 @@ class VerificationRiskAgent:
         a_status: str,
         b_status: str,
         c_status: str,
+        final_verdict: str,
+        has_evidence: bool,
     ) -> Dict[str, Any]:
         """
         Cross-Verification Assessment 3: Triangulated Synthesis (A + B + C).
         Combines model prior (A), empirical fact-checking (B), and benchmark exposure kinetics (C)
-        into a coherent final assessment.
+        into a coherent, transparent final assessment.
+        Avoids generic concurrence claims when agents disagree or data is missing.
         """
         # Formulate per-agent contribution summaries
         if a_status in {"SUCCESS", "completed"}:
-            a_contrib = f"Classified sentence framing and style as '{pred_label}' with {pred_conf:.1%} confidence."
+            a_contrib = f"Classified claim pattern as '{pred_label}' with {pred_conf:.1%} model confidence."
         else:
             a_contrib = "Classification model was unavailable; linguistic prior was set to uniform distribution."
 
-        if b_status in {"SUCCESS", "completed"} and relevant_count > 0 and top_stance != "NO_RELEVANT_EVIDENCE":
+        if b_status in {"SUCCESS", "completed"} and has_evidence:
             if a_vs_b.get("status") == "DISCREPANCY":
-                b_contrib = f"Retrieved {relevant_count} relevant fact-check(s) indicating '{top_stance}', disputing Agent A's prediction."
+                b_contrib = f"Retrieved {relevant_count} relevant fact-check(s) indicating '{top_stance}', disputing Agent A's '{pred_label}' prediction."
             else:
-                b_contrib = f"Retrieved {relevant_count} relevant fact-check(s) indicating '{top_stance}', corroborating Agent A's prediction."
+                b_contrib = f"Retrieved {relevant_count} relevant fact-check(s) indicating '{top_stance}', corroborating Agent A's '{pred_label}' prediction."
         else:
             b_contrib = "No sufficiently relevant historical fact-checks found in LIAR-PLUS; empirical grounding unavailable."
 
@@ -782,56 +792,63 @@ class VerificationRiskAgent:
             if matched_c > 0:
                 b_status_code = b_vs_c.get("status", "")
                 b_contrib_note = "debunked by evidence" if "DEBUNKED" in b_status_code else ("corroborated by evidence" if "VERIFIED" in b_status_code else "contextually evaluated")
-                c_contrib = f"Matched {matched_c} historical benchmark stories ({vel_c} tweets/hr velocity, {exposure_tier}), {b_contrib_note}."
+                c_contrib = f"Matched {matched_c} historical benchmark stories ({vel_c} tweets/hr velocity, {exposure_tier.replace('_', ' ').title()}), {b_contrib_note}."
             else:
-                c_contrib = "No matching viral narratives found in FakeNewsNet; benchmark exposure is baseline."
+                c_contrib = "No matching viral stories found in benchmark records; historical social media data was unavailable."
         else:
             c_contrib = "Historical social media influence data was unavailable; exposure remained neutral."
 
-        # Final narrative synthesis
+        # Genuine narrative synthesis: reflects genuine agreement, discrepancy, or missing data
         if a_vs_b.get("status") == "DISCREPANCY":
             narrative = (
-                f"Triangulated synthesis reveals an epistemic divergence: DistilBERT linguistic classification predicted '{pred_label}', "
-                f"but empirical LIAR-PLUS fact-checks indicate a contrary stance ('{top_stance}'). "
-                f"Historical exposure context shows {c_contrib.lower()} "
-                f"Because empirical fact-checks contradict the linguistic framing, the composite risk is evaluated at {composite_risk}/100 ({risk_level}) "
-                f"with {uncertainty_score:.0%} uncertainty."
-            )
-        elif top_stance == "NO_RELEVANT_EVIDENCE":
-            narrative = (
-                f"Triangulated synthesis relies primarily on DistilBERT linguistic classification ('{pred_label}', {pred_conf:.1%} confidence) "
-                f"due to the absence of relevant historical fact-checks in the LIAR-PLUS corpus. "
+                f"Agent D identified a signal discrepancy: DistilBERT predicted '{pred_label}', "
+                f"but empirical fact-checking evidence indicates '{top_stance}' based on {relevant_count} precedent(s). "
+                f"Verified empirical fact-checks override statistical classifier predictions. "
                 f"{c_contrib} "
-                f"Without empirical evidence grounding, epistemic uncertainty is elevated ({uncertainty_score:.0%}), "
-                f"resulting in a composite risk of {composite_risk}/100 ({risk_level})."
+                f"Final determination: {final_verdict}."
             )
-        elif a_vs_b.get("status") == "CONCURRENCE":
+        elif not has_evidence:
             narrative = (
-                f"Triangulated synthesis establishes strong multi-agent concurrence: DistilBERT linguistic classification ('{pred_label}') "
-                f"is corroborated by {relevant_count} empirical fact-checking precedent(s) ('{top_stance}'). "
+                f"DistilBERT classified the statement as '{pred_label}' ({pred_conf:.1%} confidence), "
+                f"but no sufficiently relevant historical fact-checks were retrieved to verify or refute this assertion. "
                 f"{c_contrib} "
-                f"The convergent signals support a final assessment of {composite_risk}/100 ({risk_level}) "
-                f"with {uncertainty_score:.0%} uncertainty."
+                f"Because empirical evidence is missing, the claim cannot be conclusively validated. "
+                f"Final determination: {final_verdict}."
+            )
+        elif top_stance in {"DISPUTED_STANCE"} or a_vs_b.get("status") == "DISPUTED":
+            narrative = (
+                f"Retrieved historical fact-checks contain conflicting verdicts among past evaluations. "
+                f"DistilBERT classified the claim as '{pred_label}'. "
+                f"{c_contrib} "
+                f"Because the empirical record is contested, the claim is evaluated as {final_verdict}."
             )
         else:
-            narrative = (
-                f"Triangulated synthesis evaluated linguistic classification ('{pred_label}'), "
-                f"historical evidence ('{top_stance}', {relevant_count} precedent(s)), and historical exposure ({exposure_tier}). "
-                f"Composite risk is determined at {composite_risk}/100 ({risk_level}) with {uncertainty_score:.0%} uncertainty."
-            )
+            # Corroborated A and B
+            if matched_c > 0:
+                narrative = (
+                    f"Agent A ('{pred_label}') and Agent B ('{top_stance}') corroborate each other based on {relevant_count} relevant fact-check(s). "
+                    f"{c_contrib} "
+                    f"Final determination: {final_verdict}."
+                )
+            else:
+                narrative = (
+                    f"Agent A ('{pred_label}') and Agent B ('{top_stance}') corroborate each other based on {relevant_count} relevant fact-check(s). "
+                    f"Social media benchmark records were unavailable and did not factor into the factuality assessment. "
+                    f"Final determination: {final_verdict}."
+                )
 
         return {
             "summary": narrative,
             "agent_contributions": {
                 "agent_a": {
-                    "name": "Claim Classification (DistilBERT)",
-                    "role": "Linguistic Prior",
+                    "name": "Veracity Assessment (DistilBERT)",
+                    "role": "Classifier Prior",
                     "prediction": pred_label,
                     "confidence": round(pred_conf, 4),
                     "contribution": a_contrib,
                 },
                 "agent_b": {
-                    "name": "Evidence Research (LIAR-PLUS RAG)",
+                    "name": "Historical Evidence (LIAR-PLUS RAG)",
                     "role": "Empirical Verification",
                     "stance": top_stance,
                     "relevant_count": relevant_count,
@@ -839,7 +856,7 @@ class VerificationRiskAgent:
                     "contribution": b_contrib,
                 },
                 "agent_c": {
-                    "name": "Historical Influence (FakeNewsNet)",
+                    "name": "Historical Social Influence (FakeNewsNet)",
                     "role": "Historical Exposure Context",
                     "exposure_tier": exposure_tier,
                     "matched_count": matched_c,
@@ -1103,7 +1120,177 @@ class VerificationRiskAgent:
         )
         findings.append(f"B vs C Historical Context: {b_vs_c['summary']}")
 
-        # Step 8: Three-Agent Synthesized Triangulation (A + B + C)
+        # Step 8: Multi-Agent Triangulated Decision Logic
+        has_evidence = (
+            b_status in {"SUCCESS", "completed"}
+            and total_weight > 0.08
+            and len(relevant_citations) > 0
+            and top_stance != "NO_RELEVANT_EVIDENCE"
+        )
+        matched_c_count = len(matched_stories)
+
+        if has_evidence:
+            if top_stance == "SUPPORTED_BY_EVIDENCE":
+                final_verdict = "Supported by Evidence"
+                evidence_status = "Supporting"
+                verdict_rationale = (
+                    f"Retrieved historical fact-checking evidence corroborates the factual claims in this statement. "
+                    f"Aggregated evidence from {len(relevant_citations)} relevant precedent(s) shows official alignment."
+                )
+            elif top_stance == "CONTRADICTED_BY_EVIDENCE":
+                final_verdict = "Contradicted by Evidence"
+                evidence_status = "Contradicting"
+                verdict_rationale = (
+                    f"Verified historical fact-checking records refute or contradict the assertion made in this statement. "
+                    f"Aggregated evidence from {len(relevant_citations)} precedent(s) indicates the claim is inaccurate."
+                )
+            elif top_stance == "DISPUTED_STANCE" or b_data.get("has_conflicts", False):
+                final_verdict = "Mixed Evidence"
+                evidence_status = "Mixed"
+                verdict_rationale = (
+                    "Retrieved historical fact-checks contain conflicting verdicts or divergent findings across different sources or periods. "
+                    "The assertion involves contested interpretations."
+                )
+            else:  # PARTIALLY_ALIGNED
+                final_verdict = "Mixed Evidence"
+                evidence_status = "Mixed"
+                verdict_rationale = (
+                    "Historical records partially match the topic, but specific figures, conditions, or qualifiers differ. "
+                    "The claim has factual elements but omits critical context."
+                )
+
+            if conflict_detected:
+                verdict_rationale += (
+                    f" Note: While DistilBERT predicted '{pred_label}', empirical fact-checking evidence takes precedence."
+                )
+        else:
+            evidence_status = "Insufficient"
+            # When evidence is insufficient: do NOT force into Factual/Half-True/Misleading!
+            if a_status not in {"SUCCESS", "completed"} or pred_conf < 0.60 or uncertainty_score >= 0.70:
+                final_verdict = "Insufficient Evidence"
+                verdict_rationale = (
+                    "No sufficiently relevant historical fact-checks were found in our archive to evaluate this statement. "
+                    "Without archived empirical records, a definitive truth verdict cannot be established."
+                )
+            else:
+                final_verdict = "Needs Further Verification"
+                verdict_rationale = (
+                    f"DistilBERT classified the claim as '{pred_label}' ({pred_conf:.1%} confidence), but no relevant empirical fact-checks "
+                    f"were found in the archive to substantiate or refute it. Independent verification with primary records is advised."
+                )
+
+        # Agreement analysis
+        if has_evidence:
+            if conflict_detected:
+                agreement_analysis = (
+                    f"Agent A and Agent B disagree. DistilBERT predicted '{pred_label}', but Agent B retrieved "
+                    f"{len(relevant_citations)} historical fact-check(s) indicating '{top_stance}'. "
+                    f"Empirical fact-checking evidence takes precedence over statistical phrasing patterns."
+                )
+            else:
+                agreement_analysis = (
+                    f"Agent A and Agent B agree. DistilBERT predicted '{pred_label}', and Agent B corroborated "
+                    f"this finding with {len(relevant_citations)} relevant historical fact-check(s) ({top_stance})."
+                )
+        else:
+            agreement_analysis = (
+                f"Agreement between Agent A and Agent B cannot be established because Agent B found no relevant fact-checks "
+                f"in the archive to compare against Agent A's '{pred_label}' prediction."
+            )
+
+        if matched_c_count > 0:
+            agreement_analysis += f" Agent C identified {matched_c_count} matched benchmark narrative(s) in historical records ({historical_exposure_tier.replace('_', ' ').title()}), providing exposure context."
+        else:
+            agreement_analysis += " Social media benchmark data (Agent C) was unavailable for this claim, so social context did not influence the determination."
+
+        # Missing information
+        missing_information = []
+        if not has_evidence:
+            missing_information.append("Direct fact-checking precedents for this specific claim are absent from the LIAR-PLUS archive.")
+            missing_information.append("Primary source documentation (e.g., official CBO, BLS, or agency budget releases) has not been verified.")
+        elif valid_just_count < len(citations):
+            missing_information.append(f"{len(citations) - valid_just_count} of {len(citations)} retrieved historical records lack published journalist justifications.")
+
+        if c_status not in {"SUCCESS", "completed"} or matched_c_count == 0:
+            missing_information.append("Social media propagation records for this statement are unavailable in the benchmark dataset.")
+
+        # What to verify next
+        what_to_verify_next = [
+            "Check official government statistics or agency reports (e.g., BLS, CBO, IRS) covering the exact timeframe referenced.",
+            "Verify whether the original statement omitted key qualifiers, baseline dates, or demographic sub-groups.",
+        ]
+        if conflict_detected:
+            what_to_verify_next.append("Consult multiple independent fact-checking outlets to resolve the conflict between language style and historical records.")
+        if not has_evidence:
+            what_to_verify_next.append("Cross-reference recent primary statements from the cited official or agency to evaluate original context.")
+
+        decision_breakdown = {
+            "final_verdict": final_verdict,
+            "evidence_status": evidence_status,
+            "verdict_rationale": verdict_rationale,
+            "agent_a_role": {
+                "prediction": pred_label,
+                "confidence": round(pred_conf, 4),
+                "explanation": f"DistilBERT classified claim as '{pred_label}' with {pred_conf:.1%} model confidence.",
+            },
+            "agent_b_role": {
+                "stance": top_stance,
+                "relevant_count": len(relevant_citations),
+                "relation_to_a": "contradicts" if conflict_detected else ("corroborates" if has_evidence else "unavailable"),
+                "explanation": (
+                    f"Retrieved {len(relevant_citations)} relevant historical fact-check(s) indicating '{top_stance}'."
+                    if has_evidence else
+                    "No relevant historical fact-checks found in LIAR-PLUS; empirical grounding unavailable."
+                ),
+            },
+            "agent_c_role": {
+                "status": c_status,
+                "matched_count": matched_c_count,
+                "has_context": bool(matched_c_count > 0),
+                "explanation": (
+                    f"Matched {matched_c_count} historical benchmark stories ({historical_exposure_tier.replace('_', ' ').title()})."
+                    if matched_c_count > 0 else
+                    "Benchmark data unavailable: No matching viral stories in FakeNewsNet."
+                ),
+            },
+            "agreement_analysis": agreement_analysis,
+            "missing_information": missing_information,
+            "what_to_verify_next": what_to_verify_next,
+            "technical_details": {
+                "composite_risk_score": composite_risk,
+                "risk_level": risk_level,
+                "uncertainty_score": uncertainty_score,
+                "classifier_weight_pct": round((1.0 - alpha) * 100, 1),
+                "evidence_weight_pct": round(alpha * 100, 1),
+                "social_weight_pct": 0.0,
+                "evidential_mass": round(total_weight, 3),
+                "js_divergence": round(conflict_score, 4),
+                "synthesized_probabilities": {
+                    "Misleading": round(p_syn[0], 4),
+                    "Half-True": round(p_syn[1], 4),
+                    "Factual": round(p_syn[2], 4),
+                },
+            },
+        }
+
+        risk_score_breakdown = {
+            "composite_score": composite_risk,
+            "risk_level": risk_level,
+            "uncertainty": uncertainty_score,
+            "classifier_weight_pct": round((1.0 - alpha) * 100, 1),
+            "evidence_weight_pct": round(alpha * 100, 1),
+            "social_influence_weight_pct": 0.0,
+            "evidence_mass": round(total_weight, 3),
+            "divergence_d_js": round(conflict_score, 4),
+            "conflict_detected": conflict_detected,
+            "explanation": (
+                f"Risk score ({composite_risk}/100) is derived from a weighted fusion of classifier prior ({round((1.0 - alpha) * 100)}%) "
+                f"and empirical evidence ({round(alpha * 100)}%). Social virality has 0% weight on factuality. "
+                f"Uncertainty is {uncertainty_score:.0%} based on prediction clarity, evidence availability, and signal divergence."
+            ),
+        }
+
+        # Step 9: Three-Agent Synthesized Triangulation (A + B + C)
         three_agent_synthesis = self._synthesize_three_agents(
             a_vs_b=a_vs_b,
             b_vs_c=b_vs_c,
@@ -1111,6 +1298,7 @@ class VerificationRiskAgent:
             pred_conf=pred_conf,
             top_stance=top_stance,
             relevant_count=len(relevant_citations),
+            total_weight=total_weight,
             exposure_tier=historical_exposure_tier,
             composite_risk=composite_risk,
             risk_level=risk_level,
@@ -1118,6 +1306,8 @@ class VerificationRiskAgent:
             a_status=a_status,
             b_status=b_status,
             c_status=c_status,
+            final_verdict=final_verdict,
+            has_evidence=has_evidence,
         )
         findings.append(f"Triangulated Synthesis: {three_agent_synthesis['summary']}")
 
@@ -1126,7 +1316,7 @@ class VerificationRiskAgent:
 
         duration_ms = round((time.time() - start_time) * 1000, 2)
         summary = (
-            f"Composite Risk: {composite_risk}/100 ({risk_level}). "
+            f"Final Verdict: {final_verdict}. Composite Risk: {composite_risk}/100 ({risk_level}). "
             f"Epistemic Stance: {top_stance}. Uncertainty: {uncertainty_score:.0%}. "
             f"A vs B: {a_vs_b.get('status', 'N/A')}. B vs C: {b_vs_c.get('status', 'N/A')}."
         )
@@ -1138,6 +1328,10 @@ class VerificationRiskAgent:
             "duration_ms": duration_ms,
             "summary": summary,
             "data": {
+                "final_verdict": final_verdict,
+                "evidence_status": evidence_status,
+                "decision_breakdown": decision_breakdown,
+                "risk_score_breakdown": risk_score_breakdown,
                 "composite_risk_score": composite_risk,
                 "risk_level": risk_level,
                 "uncertainty_score": uncertainty_score,

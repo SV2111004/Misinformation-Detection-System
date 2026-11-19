@@ -92,11 +92,11 @@ export default function EvidenceResearchPage({
             Dashboard
           </button>
           <span className="crumb-sep">/</span>
-          <span className="crumb-current">Evidence &amp; RAG Research</span>
+          <span className="crumb-current">Evidence &amp; RAG</span>
         </div>
-        <h1>PolitiFact Evidence Retrieval &amp; Semantic RAG</h1>
+        <h1>Evidence &amp; RAG</h1>
         <p className="page-description">
-          Queries 5,562 verified PolitiFact rulings in the canonical socioeconomic training corpus to retrieve precedent claims, published journalistic justifications, and factual rulings.
+          Search historical fact-checking rulings, published journalist justifications, and precedent statements.
         </p>
       </div>
 
@@ -104,20 +104,16 @@ export default function EvidenceResearchPage({
       {evidenceStats && (
         <div className="corpus-info-strip">
           <div className="corpus-stat-item">
-            <span className="corpus-stat-label">Indexed Corpus</span>
-            <strong>{evidenceStats.total_indexed?.toLocaleString()} PolitiFact Records</strong>
-          </div>
-          <div className="corpus-stat-item">
-            <span className="corpus-stat-label">Benchmark Split</span>
-            <strong>LIAR-PLUS ({evidenceStats.split || "Train"})</strong>
-          </div>
-          <div className="corpus-stat-item">
-            <span className="corpus-stat-label">Vector Store</span>
-            <strong>ChromaDB + MiniLM Embeddings</strong>
+            <span className="corpus-stat-label">Verified Archive</span>
+            <strong>{evidenceStats.total_indexed?.toLocaleString()} Fact-Checks</strong>
           </div>
           <div className="corpus-stat-item">
             <span className="corpus-stat-label">Retrieval Mode</span>
-            <strong>Semantic Similarity (ChromaDB Embeddings)</strong>
+            <strong>Semantic Vector Search</strong>
+          </div>
+          <div className="corpus-stat-item">
+            <span className="corpus-stat-label">Domain Scope</span>
+            <strong>Socio-Economic &amp; Welfare Policy</strong>
           </div>
         </div>
       )}
@@ -134,29 +130,29 @@ export default function EvidenceResearchPage({
           setEvidenceData(null);
           setError("");
         }}
-        buttonLabel="Retrieve Precedent Evidence"
-        placeholder="Enter a statement, political topic, or claim keywords to retrieve corroborating or debunking evidence..."
+        buttonLabel="Search Evidence"
+        placeholder="Enter a statement or policy topic to retrieve corroborating or debunking evidence..."
       />
 
       {/* Search Filter Controls Bar */}
       <div className="evidence-controls-card">
         <div className="control-field">
-          <label htmlFor="top-k-select">Retrieval Limit (Top-K):</label>
+          <label htmlFor="top-k-select">Results Limit:</label>
           <select
             id="top-k-select"
             value={topK}
             onChange={(e) => setTopK(Number(e.target.value))}
             className="select-input"
           >
-            <option value={3}>Top 3 Citations</option>
-            <option value={5}>Top 5 Citations</option>
-            <option value={10}>Top 10 Citations</option>
+            <option value={3}>Top 3 Records</option>
+            <option value={5}>Top 5 Records</option>
+            <option value={10}>Top 10 Records</option>
           </select>
         </div>
 
         <div className="control-field">
           <label htmlFor="min-score-slider">
-            Minimum Relevance Threshold: <strong>{(minScore * 100).toFixed(0)}%</strong>
+            Relevance Threshold: <strong>{(minScore * 100).toFixed(0)}%</strong>
           </label>
           <input
             id="min-score-slider"
@@ -176,7 +172,7 @@ export default function EvidenceResearchPage({
         <div className="evidence-results-section">
           <div className="results-header-row">
             <div>
-              <h3>Retrieved Benchmark Records</h3>
+              <h3>Retrieved Evidence Records</h3>
               <span className="results-subtext">
                 Found {results.length} historical statements matching query relevance &gt;= {(minScore * 100).toFixed(0)}%
               </span>
@@ -193,7 +189,7 @@ export default function EvidenceResearchPage({
             <div className="grounded-summary-card">
               <div className="summary-card-header">
                 <span className="summary-icon">📄</span>
-                <h4>Grounded RAG Evidence Synthesis</h4>
+                <h4>Grounded Evidence Synthesis</h4>
               </div>
               <p className="summary-body-text">{evidenceData.grounded_summary}</p>
             </div>
@@ -201,8 +197,8 @@ export default function EvidenceResearchPage({
 
           {results.length === 0 ? (
             <div className="empty-results-box">
-              <p>No historical statements in the PolitiFact corpus met the {Math.round(minScore * 100)}% relevance threshold.</p>
-              <span className="empty-hint">Try lowering the minimum threshold slider above or expanding your claim keywords.</span>
+              <p>No historical statements met the {Math.round(minScore * 100)}% relevance threshold.</p>
+              <span className="empty-hint">Try adjusting the relevance threshold slider above or expanding your keywords.</span>
             </div>
           ) : (
             <div className="evidence-cards-list">
@@ -225,48 +221,26 @@ export default function EvidenceResearchPage({
                 return (
                   <article key={item.statement_id || idx} className="evidence-card-item">
                     <div className="card-top-bar">
-                      <div className="card-tags-group">
-                        <span className="dataset-source-tag">
-                          {item.source_dataset || "LIAR-PLUS"} · {item.split || "train"}
-                        </span>
-                        {item.has_context_alignment ? (
-                          <span className="context-badge badge-aligned" title="Keywords match justification context">
-                            ✓ Context: Aligned
-                          </span>
-                        ) : (
-                          <span className="context-badge badge-anomaly" title="Raw TSV benchmark anomaly: excerpt may correspond to adjacent row">
-                            ⚠️ Context: Upstream Unverified
-                          </span>
-                        )}
-                      </div>
-
-                      {similarityPct && (
-                        <div className="similarity-badge">
-                          <span className="sim-label">Semantic Similarity</span>
-                          <strong>{similarityPct}%</strong>
+                      <div className="speaker-header-row">
+                        <div className="speaker-avatar-circle">
+                          {speakerName ? speakerName.charAt(0).toUpperCase() : "P"}
                         </div>
-                      )}
-                    </div>
-
-                    {/* Historical Verdict Banner */}
-                    <div className="historical-verdict-row">
-                      <span className="historical-caption">POLITIFACT HISTORICAL VERDICT:</span>
-                      <span className={`veracity-chip chip-${item.verdict}`}>
-                        {verdictInfo.title}
-                      </span>
-                      <span className="verdict-note-text">
-                        *PolitiFact's ruling for the historical statement below.*
-                      </span>
-                    </div>
-
-                    {/* Speaker Header */}
-                    <div className="speaker-header-row">
-                      <div className="speaker-avatar-circle">
-                        {speakerName ? speakerName.charAt(0).toUpperCase() : "P"}
+                        <div>
+                          <strong className="speaker-name">{speakerName}</strong>
+                          <span className="speaker-subtitle">{speakerMeta || "Public Figure"}</span>
+                        </div>
                       </div>
-                      <div>
-                        <strong className="speaker-name">{speakerName}</strong>
-                        <span className="speaker-subtitle">{speakerMeta || "Political Public Figure"}</span>
+
+                      <div className="card-top-right-tags">
+                        <span className={`veracity-chip chip-${item.verdict}`}>
+                          Past Verdict: {verdictInfo.title}
+                        </span>
+                        {similarityPct && (
+                          <div className="similarity-badge">
+                            <span className="sim-label">Match</span>
+                            <strong>{similarityPct}%</strong>
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -278,7 +252,7 @@ export default function EvidenceResearchPage({
 
                     {/* Published Justification */}
                     <div className="justification-quote-box">
-                      <span className="quote-label">Published PolitiFact Justification:</span>
+                      <span className="quote-label">Published Justification:</span>
                       <p>{item.justification || "No justification text available for this record."}</p>
                     </div>
 
@@ -292,12 +266,12 @@ export default function EvidenceResearchPage({
                         )}
                         {item.context && (
                           <span className="meta-tag" title={item.context}>
-                            Venue: {item.context.length > 35 ? `${item.context.slice(0, 35)}...` : item.context}
+                            Venue: {item.context.length > 40 ? `${item.context.slice(0, 40)}...` : item.context}
                           </span>
                         )}
                       </div>
                       {item.statement_id && (
-                        <span className="statement-id-tag">ID: {item.statement_id}</span>
+                        <span className="statement-id-tag">Record #{item.statement_id}</span>
                       )}
                     </div>
                   </article>
@@ -305,16 +279,6 @@ export default function EvidenceResearchPage({
               })}
             </div>
           )}
-
-          {/* Academic Transparency Box */}
-          <div className="academic-disclaimer-box">
-            <h4>Academic Boundary &amp; Benchmark Limitations Notice</h4>
-            <p>
-              Evidence records reflect published fact-checks from the LIAR-PLUS dataset (Wang et al., ACL 2017 / Alhindi et al., EMNLP 2018).
-              These historical findings describe prior political claims analyzed by PolitiFact journalists and provide precedent context.
-              They serve as evidentiary references, not an automated ruling on newly submitted statements.
-            </p>
-          </div>
         </div>
       )}
     </div>

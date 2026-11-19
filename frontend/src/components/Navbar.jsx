@@ -4,13 +4,13 @@ export default function Navbar({ currentPath, onNavigate, isBackendOnline = true
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const navItems = [
-    { path: "/", label: "Dashboard", badge: null },
-    { path: "/claim-analysis", label: "Claim Classifier", badge: "DistilBERT" },
-    { path: "/evidence", label: "Evidence & RAG", badge: "ChromaDB" },
-    { path: "/agentic-analysis", label: "Multi-Agent Workflow", badge: "5 Agents" },
-    { path: "/influence-analysis", label: "Social Influence", badge: "FakeNewsNet" },
-    { path: "/social-network", label: "Propagation Graph", badge: "SNA" },
-    { path: "/propagation-analysis", label: "Cascade Kinetics", badge: "Kinetics" },
+    { path: "/", label: "Dashboard" },
+    { path: "/agentic-analysis", label: "Multi-Agent Workflow" },
+    { path: "/claim-analysis", label: "Claim Classifier" },
+    { path: "/evidence", label: "Evidence & RAG" },
+    { path: "/influence-analysis", label: "Social Influence" },
+    { path: "/social-network", label: "Propagation Graph" },
+    { path: "/propagation-analysis", label: "Cascade Kinetics" },
   ];
 
   const handleNavClick = (path) => {
@@ -26,16 +26,21 @@ export default function Navbar({ currentPath, onNavigate, isBackendOnline = true
           onClick={() => handleNavClick("/")}
           role="button"
           tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") handleNavClick("/");
+          }}
         >
-          <div className="brand-logo-mark">V</div>
+          <div className="brand-logo-mark" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+              <path d="m9 12 2 2 4-4" />
+            </svg>
+          </div>
           <div className="brand-titles">
             <div className="brand-main-title">
-              <h2>VERITAS</h2>
-              <span className="brand-tag">Research System</span>
+              <h1>Misinformation Detection &amp; Social Network Propagation</h1>
             </div>
-            <span className="brand-subtitle">
-              Political Misinformation Detection, Evidence Retrieval &amp; Rumor Propagation
-            </span>
+            <span className="brand-subtitle">Research &amp; Verification Platform</span>
           </div>
         </div>
 
@@ -43,7 +48,7 @@ export default function Navbar({ currentPath, onNavigate, isBackendOnline = true
           <div className={`system-status-indicator ${isBackendOnline ? "status-online" : "status-offline"}`}>
             <span className="status-pulse-dot" />
             <span className="status-label-text">
-              {isBackendOnline ? "FastAPI Backend Online" : "Connecting Backend..."}
+              {isBackendOnline ? "System Online" : "Connecting..."}
             </span>
           </div>
 
@@ -58,7 +63,7 @@ export default function Navbar({ currentPath, onNavigate, isBackendOnline = true
         </div>
       </div>
 
-      <nav className={`navbar-tabs-bar ${mobileMenuOpen ? "mobile-open" : ""}`}>
+      <nav className={`navbar-tabs-bar ${mobileMenuOpen ? "mobile-open" : ""}`} aria-label="Main Navigation">
         <ul className="nav-tabs-list">
           {navItems.map((item) => {
             const isActive = currentPath === item.path;
@@ -71,7 +76,6 @@ export default function Navbar({ currentPath, onNavigate, isBackendOnline = true
                   aria-current={isActive ? "page" : undefined}
                 >
                   <span className="tab-label">{item.label}</span>
-                  {item.badge && <span className="tab-pill-badge">{item.badge}</span>}
                 </button>
               </li>
             );
