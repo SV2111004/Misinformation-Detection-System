@@ -125,27 +125,27 @@ DISTILBERT_DIR = (
 )
 
 TFIDF_PATH = (
-    BASE_DIR
-    / "models"
-    / "tfidf_socioeconomic_3class.pkl"
+    (BASE_DIR / "models" / "tfidf_socioeconomic_3class.pkl")
+    if (BASE_DIR / "models" / "tfidf_socioeconomic_3class.pkl").exists()
+    else (BASE_DIR / "models" / "tfidf_vectorizer.pkl")
 )
 
 BASELINE_MODEL_PATH = (
-    BASE_DIR
-    / "models"
-    / "baseline_socioeconomic_3class.pkl"
+    (BASE_DIR / "models" / "baseline_socioeconomic_3class.pkl")
+    if (BASE_DIR / "models" / "baseline_socioeconomic_3class.pkl").exists()
+    else (BASE_DIR / "models" / "baseline_model.pkl")
 )
 
 SOCIO_TFIDF_PATH = (
-    BASE_DIR
-    / "models"
-    / "tfidf_socioeconomic_3class.pkl"
+    (BASE_DIR / "models" / "tfidf_socioeconomic_3class.pkl")
+    if (BASE_DIR / "models" / "tfidf_socioeconomic_3class.pkl").exists()
+    else (BASE_DIR / "models" / "tfidf_vectorizer.pkl")
 )
 
 SOCIO_BASELINE_MODEL_PATH = (
-    BASE_DIR
-    / "models"
-    / "baseline_socioeconomic_3class.pkl"
+    (BASE_DIR / "models" / "baseline_socioeconomic_3class.pkl")
+    if (BASE_DIR / "models" / "baseline_socioeconomic_3class.pkl").exists()
+    else (BASE_DIR / "models" / "baseline_model.pkl")
 )
 
 
@@ -202,13 +202,14 @@ ID2LABEL = SOCIO_ID2LABEL
 
 print("Loading baseline TF-IDF vectorizer...")
 
-tfidf_vectorizer = joblib.load(
-    TFIDF_PATH
-)
-
-print(
-    "TF-IDF vectorizer loaded successfully!"
-)
+try:
+    tfidf_vectorizer = joblib.load(
+        TFIDF_PATH
+    )
+    print("TF-IDF vectorizer loaded successfully!")
+except Exception as e:
+    print(f"Warning: TF-IDF vectorizer could not be loaded ({e}).")
+    tfidf_vectorizer = None
 
 
 # ============================================================

@@ -31,6 +31,21 @@ function getShortJustification(text) {
   return trimmed;
 }
 
+// Helpers for Sharing Recommendations (Agent E)
+const getSharingRecClass = (rec) => {
+  const norm = String(rec || "").toLowerCase();
+  if (norm.includes("not share")) return "danger";
+  if (norm.includes("share with context")) return "success";
+  return "warning";
+};
+
+const getSharingRecIcon = (rec) => {
+  const norm = String(rec || "").toLowerCase();
+  if (norm.includes("not share")) return "🚫";
+  if (norm.includes("share with context")) return "✅";
+  return "⏳";
+};
+
 // Helper for Stance metadata and plain English explanation
 const getStanceMeta = (stance) => {
   switch (stance) {
@@ -584,273 +599,233 @@ export default function AgenticAnalysisPage({
           </section>
 
           {/* =========================================================
-              5. AGENT D: CROSS-VERIFICATION & FINAL ASSESSMENT
+              SECTION A — AGENT D: FINAL VERIFICATION & RISK ASSESSMENT
           ========================================================= */}
           {verification && (
-            <section className="agent-result-card conclusion-card agent-d-card">
+            <section className="agent-result-card section-a-agent-d-card">
               <div className="agent-card-header">
                 <div className="agent-header-titles">
-                  <span className="agent-role-tag">Agent D</span>
+                  <span className="agent-role-tag agent-role-d">Section A · Agent D</span>
                   <div>
-                    <h3 className="agent-title">Cross-Verification &amp; Final Assessment</h3>
-                    <span className="agent-sub-title">Triangulated Multi-Agent Reasoning</span>
+                    <h3 className="agent-title">Final Verification &amp; Risk Assessment</h3>
+                    <span className="agent-sub-title">Multi-Agent Verification &amp; Decision Summary</span>
                   </div>
                 </div>
-              </div>
-
-              <div className="agent-card-body">
-                <p className="comparison-intro">
-                  Agent D genuinely compares the outputs of Agents A, B, and C to identify corroboration, conflicts, or data gaps:
-                </p>
-
-                {/* 3 Comparison Columns */}
-                <div className="findings-comparison-grid">
-                  <div className="comparison-column">
-                    <span className="col-agent-label">Agent A: Veracity Assessment</span>
-                    <strong className="col-agent-verdict">{claimAnalysis?.label || "Analyzed"}</strong>
-                    <p>
-                      {decisionBreakdown?.agent_a_role?.explanation ||
-                        `DistilBERT classified claim as '${claimAnalysis?.label || "Half-True"}' with ${confidencePercent}% confidence.`}
-                    </p>
-                  </div>
-
-                  <div className="comparison-column">
-                    <span className="col-agent-label">Agent B: Historical Evidence</span>
-                    <strong className="col-agent-verdict">{stanceMeta.title}</strong>
-                    <p>
-                      {decisionBreakdown?.agent_b_role?.explanation ||
-                        (isNoEvidence
-                          ? "No relevant historical fact-checks were available to corroborate or dispute."
-                          : `Retrieved ${relevantCount} historical fact-check(s).`)}
-                    </p>
-                  </div>
-
-                  <div className="comparison-column">
-                    <span className="col-agent-label">Agent C: Social Influence</span>
-                    <strong className="col-agent-verdict">
-                      {matchedStories.length > 0 ? `${matchedStories.length} Matched Stories` : "Unavailable"}
-                    </strong>
-                    <p>
-                      {decisionBreakdown?.agent_c_role?.explanation ||
-                        (matchedStories.length > 0
-                          ? `Identified ${matchedStories.length} matched benchmark narrative(s) in historical records.`
-                          : "Benchmark data unavailable: No matching viral stories in FakeNewsNet.")}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Agreement / Discrepancy Alert */}
-                {decisionBreakdown?.agreement_analysis ? (
-                  <div className={`comparison-alert-box ${aVsB?.status === "DISCREPANCY" ? "alert-discrepancy" : "alert-concurrence"}`}>
-                    <strong>Multi-Agent Agreement Analysis:</strong> {decisionBreakdown.agreement_analysis}
-                  </div>
-                ) : aVsB?.status === "DISCREPANCY" ? (
-                  <div className="comparison-alert-box alert-discrepancy">
-                    <strong>Comparison Note:</strong> The classifier prediction and historical fact-checking evidence disagree. Verified historical evidence takes precedence over statistical classification patterns.
-                  </div>
-                ) : null}
-              </div>
-            </section>
-          )}
-
-          {/* =========================================================
-              6. AGENT E: ADVISORY RECOMMENDATIONS
-          ========================================================= */}
-          {recommendations && recommendations.length > 0 && (
-            <section className="agent-result-card next-steps-card agent-e-card">
-              <div className="agent-card-header">
-                <div className="agent-header-titles">
-                  <span className="agent-role-tag">Agent E</span>
-                  <div>
-                    <h3 className="agent-title">Advisory Recommendations</h3>
-                    <span className="agent-sub-title">Actionable Verification Guidance</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="agent-card-body">
-                <p className="next-steps-intro">
-                  Recommended verification actions for readers and reviewers before sharing or relying on this claim:
-                </p>
-
-                <div className="recommendations-stack">
-                  {recommendations.map((rec, idx) => {
-                    const hasRationale = Boolean(rec.rationale && String(rec.rationale).trim());
-                    const hasDetails = Boolean(rec.details && String(rec.details).trim());
-
-                    return (
-                      <div key={idx} className="clean-rec-card">
-                        <div className="rec-header">
-                          {rec.priority && (
-                            <span className={`rec-priority-pill priority-${String(rec.priority).toLowerCase()}`}>
-                              {String(rec.priority).toUpperCase()} PRIORITY
-                            </span>
-                          )}
-                          {rec.target && (
-                            <span className="rec-target-label">For {rec.target}</span>
-                          )}
-                        </div>
-
-                        <h4 className="rec-action-heading">{rec.action}</h4>
-
-                        {hasRationale && (
-                          <div className="rec-field">
-                            <strong>Why:</strong>
-                            <p>{rec.rationale}</p>
-                          </div>
-                        )}
-
-                        {hasDetails && (
-                          <div className="rec-field">
-                            <strong>Suggested Action:</strong>
-                            <p>{rec.details}</p>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </section>
-          )}
-
-          {/* =========================================================
-              7. FINAL VERIFICATION RESULT (AT THE VERY END)
-          ========================================================= */}
-          {verification && (
-            <section
-              className="agent-result-card final-verification-result-card"
-              style={{
-                borderLeft: `5px solid ${finalVerdictBadge.color}`,
-                backgroundColor: finalVerdictBadge.bg,
-              }}
-            >
-              <div className="final-result-top-banner">
-                <span
-                  className="final-result-pill"
-                  style={{
-                    backgroundColor: finalVerdictBadge.badgeBg,
-                    color: finalVerdictBadge.badgeColor,
-                    borderColor: finalVerdictBadge.badgeBorder,
-                  }}
-                >
-                  {finalVerdictBadge.icon} Final Verification Result
+                <span className={`final-verdict-chip chip-verdict-${(verification.simple_risk_level || "moderate").toLowerCase()}`}>
+                  {verification.final_assessment || verification.final_verdict || finalVerdictText}
                 </span>
-                <h2 className="final-verdict-heading" style={{ color: finalVerdictBadge.color }}>
-                  {finalVerdictText}
-                </h2>
               </div>
 
-              <p className="final-verdict-rationale-text">
-                {decisionBreakdown?.verdict_rationale ||
-                  threeAgentSynth?.summary ||
-                  verification?.summary ||
-                  finalVerdictBadge.desc}
-              </p>
+              <div className="agent-card-body">
+                {/* 4 Core Decision Metrics: Score, Risk Level, Uncertainty, Evidence Strength */}
+                <div className="d-metrics-summary-grid">
+                  <div className="d-metric-tile">
+                    <span className="d-tile-label">Final Risk Score</span>
+                    <div className="d-tile-value-row">
+                      <strong className="d-tile-number">
+                        {verification.final_risk_score ?? verification.composite_risk_score ?? 50}
+                      </strong>
+                      <span className="d-tile-denom">/ 100</span>
+                    </div>
+                    <span className={`d-tile-badge badge-${(verification.simple_risk_level || "moderate").toLowerCase()}`}>
+                      {verification.simple_risk_level || "Moderate"} Risk
+                    </span>
+                  </div>
 
-              {/* 3 Structured Details Cards */}
-              <div className="final-breakdown-trio-grid">
-                <div className="trio-card">
-                  <span className="trio-kicker">Evidence Status</span>
-                  <strong className="trio-title">{decisionBreakdown?.evidence_status || stanceMeta.title}</strong>
-                  <p className="trio-text">
-                    {stanceMeta.desc}
+                  <div className="d-metric-tile">
+                    <span className="d-tile-label">Risk Level</span>
+                    <strong className="d-tile-main-text">{verification.simple_risk_level || "Moderate"}</strong>
+                    <span className="d-tile-subtext">Factuality &amp; Misinformation Risk</span>
+                  </div>
+
+                  <div className="d-metric-tile">
+                    <span className="d-tile-label">Uncertainty Level</span>
+                    <strong className="d-tile-main-text">{verification.uncertainty_level || "Moderate"}</strong>
+                    <span className="d-tile-subtext">Evidence Coverage &amp; Grounding</span>
+                  </div>
+
+                  <div className="d-metric-tile">
+                    <span className="d-tile-label">Evidence Strength</span>
+                    <strong className="d-tile-main-text">{verification.evidence_strength || "Limited"}</strong>
+                    <span className="d-tile-subtext">{relevantCount} Precedent Record{relevantCount === 1 ? "" : "s"}</span>
+                  </div>
+                </div>
+
+                {/* Final Explanation Box */}
+                <div className="d-final-explanation-card">
+                  <span className="d-box-title">Final Assessment Explanation</span>
+                  <p className="d-final-explanation-text">
+                    {verification.final_explanation || verification.summary || "No assessment explanation available."}
                   </p>
                 </div>
 
-                <div className="trio-card">
-                  <span className="trio-kicker">Missing Information</span>
-                  <strong className="trio-title">Unarchived Elements</strong>
-                  <ul className="trio-list">
-                    {decisionBreakdown?.missing_information && decisionBreakdown.missing_information.length > 0 ? (
-                      decisionBreakdown.missing_information.map((item, i) => <li key={i}>{item}</li>)
-                    ) : (
-                      <li>No major informational gaps identified in benchmark records.</li>
-                    )}
-                  </ul>
+                {/* Step 2 & 3: Comparisons Grid (A vs B and B vs C) */}
+                <div className="d-comparisons-grid">
+                  {/* Agent A vs Agent B Comparison */}
+                  <div className="d-comparison-box">
+                    <div className="d-comp-header">
+                      <span className="d-comp-tag">Step 2: Model vs Evidence</span>
+                      <span className={`d-comp-status-pill status-${(verification.a_vs_b?.agreement || "info").toLowerCase().replace(/\s+/g, "-")}`}>
+                        {verification.a_vs_b?.agreement || "Comparison"}
+                      </span>
+                    </div>
+                    <h4 className="d-comp-title">Agent A (Prediction) vs Agent B (Evidence)</h4>
+                    <p className="d-comp-desc">
+                      {verification.a_vs_b?.explanation || "Comparison between classifier prediction and empirical evidence."}
+                    </p>
+                  </div>
+
+                  {/* Agent B vs Agent C Context */}
+                  <div className="d-comparison-box">
+                    <div className="d-comp-header">
+                      <span className="d-comp-tag">Step 3: Historical Social Context</span>
+                      <span className="d-comp-status-pill status-context">
+                        {verification.b_vs_c?.has_context ? "Context Matched" : "No Match"}
+                      </span>
+                    </div>
+                    <h4 className="d-comp-title">Agent B (Evidence) vs Agent C (Social Spread)</h4>
+                    <p className="d-comp-desc">
+                      {verification.b_vs_c?.explanation || "Historical social media spread context. (Social activity does not alter factuality risk.)"}
+                    </p>
+                  </div>
                 </div>
 
-                <div className="trio-card">
-                  <span className="trio-kicker">What You Should Verify Next</span>
-                  <strong className="trio-title">Actionable Checks</strong>
-                  <ul className="trio-list">
-                    {decisionBreakdown?.what_to_verify_next && decisionBreakdown.what_to_verify_next.length > 0 ? (
-                      decisionBreakdown.what_to_verify_next.map((item, i) => <li key={i}>{item}</li>)
-                    ) : (
-                      <li>Check official primary agency sources (CBO, BLS, IRS).</li>
-                    )}
-                  </ul>
+                {/* Contribution of All Three Agents */}
+                <div className="d-contributions-wrapper">
+                  <h4 className="d-contributions-heading">Overall Contribution of All Three Agents</h4>
+                  <div className="d-contributions-grid">
+                    <div className="d-contrib-card">
+                      <div className="d-contrib-top">
+                        <span className="d-contrib-chip chip-a">Agent A</span>
+                        <strong className="d-contrib-role">Claim Classifier</strong>
+                      </div>
+                      <p className="d-contrib-text">
+                        {verification.agent_contributions?.agent_a?.contribution ||
+                          `Classified statement as '${claimAnalysis?.label || "Half-True"}' with ${confidencePercent}% confidence.`}
+                      </p>
+                    </div>
+
+                    <div className="d-contrib-card">
+                      <div className="d-contrib-top">
+                        <span className="d-contrib-chip chip-b">Agent B</span>
+                        <strong className="d-contrib-role">Fact-Checking Evidence</strong>
+                      </div>
+                      <p className="d-contrib-text">
+                        {verification.agent_contributions?.agent_b?.contribution ||
+                          (isNoEvidence
+                            ? "No relevant historical fact-checks found in the archive."
+                            : `Retrieved ${relevantCount} historical fact-check(s).`)}
+                      </p>
+                    </div>
+
+                    <div className="d-contrib-card">
+                      <div className="d-contrib-top">
+                        <span className="d-contrib-chip chip-c">Agent C</span>
+                        <strong className="d-contrib-role">Social Exposure Context</strong>
+                      </div>
+                      <p className="d-contrib-text">
+                        {verification.agent_contributions?.agent_c?.contribution ||
+                          (matchedStories.length > 0
+                            ? `Matched ${matchedStories.length} related historical story/stories in benchmark records.`
+                            : "No relevant historical social media data was found in benchmark records.")}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+          )}
+
+          {/* =========================================================
+              SECTION B — AGENT E: MITIGATION & RECOMMENDATIONS
+          ========================================================= */}
+          {mitigation && (
+            <section className="agent-result-card section-b-agent-e-card">
+              <div className="agent-card-header">
+                <div className="agent-header-titles">
+                  <span className="agent-role-tag agent-role-e">Section B · Agent E</span>
+                  <div>
+                    <h3 className="agent-title">Mitigation &amp; Practical Recommendations</h3>
+                    <span className="agent-sub-title">Actionable Guidance for Users and Reviewers</span>
+                  </div>
                 </div>
               </div>
 
-              {/* Optional Expandable Technical Details Section */}
-              <div className="technical-details-toggle-container">
-                <button
-                  type="button"
-                  className="btn-technical-toggle"
-                  onClick={() => setShowTechnicalDetails(!showTechnicalDetails)}
-                >
-                  {showTechnicalDetails ? "▲ Hide Technical Details" : "▼ Show Technical Details (Risk Weights & Metrics)"}
-                </button>
+              <div className="agent-card-body">
+                {/* 3. Sharing Recommendation Banner */}
+                <div className={`sharing-rec-banner rec-banner-${getSharingRecClass(mitigation.sharing_recommendation)}`}>
+                  <div className="sharing-rec-left">
+                    <span className="sharing-rec-kicker">Recommended Sharing Decision:</span>
+                    <h3 className="sharing-rec-verdict">
+                      {mitigation.sharing_recommendation || "Hold for Verification"}
+                    </h3>
+                  </div>
+                  <span className="sharing-rec-icon">
+                    {getSharingRecIcon(mitigation.sharing_recommendation)}
+                  </span>
+                </div>
 
-                {showTechnicalDetails && (
-                  <div className="technical-details-expanded-panel">
-                    <div className="tech-metrics-grid">
-                      <div className="tech-metric-box">
-                        <span className="tech-metric-name">Composite Risk Score</span>
-                        <strong className="tech-metric-val">{verification.composite_risk_score} / 100</strong>
-                        <span className="tech-metric-sub">{verification.risk_level?.replace(/_/g, " ")}</span>
-                      </div>
-
-                      <div className="tech-metric-box">
-                        <span className="tech-metric-name">Epistemic Uncertainty</span>
-                        <strong className="tech-metric-val">{((Number(verification.uncertainty_score) || 0) * 100).toFixed(0)}%</strong>
-                        <span className="tech-metric-sub">Distance from uniform + scarcity</span>
-                      </div>
-
-                      <div className="tech-metric-box">
-                        <span className="tech-metric-name">Evidence Mass &amp; Weight</span>
-                        <strong className="tech-metric-val">
-                          {decisionBreakdown?.technical_details?.evidence_weight_pct ?? 65}% Evidence
-                        </strong>
-                        <span className="tech-metric-sub">
-                          Classifier Prior: {decisionBreakdown?.technical_details?.classifier_weight_pct ?? 35}%
-                        </span>
-                      </div>
-
-                      <div className="tech-metric-box">
-                        <span className="tech-metric-name">Jensen-Shannon Divergence</span>
-                        <strong className="tech-metric-val">
-                          {verification.conflict_score !== undefined ? verification.conflict_score.toFixed(3) : "0.000"}
-                        </strong>
-                        <span className="tech-metric-sub">Model vs Evidence distance</span>
-                      </div>
+                <div className="e-recommendations-grid">
+                  {/* 1. Immediate Action */}
+                  <div className="e-card e-immediate-card">
+                    <div className="e-card-header">
+                      <span className="e-card-icon">⚡</span>
+                      <h4>1. Immediate Action</h4>
                     </div>
+                    <p className="e-card-body-text">
+                      {mitigation.immediate_action || "Pause and verify this statement before sharing or citing it."}
+                    </p>
+                  </div>
 
-                    {verification.synthesized_probabilities && (
-                      <div className="tech-probabilities-row">
-                        <span className="tech-prob-label">Synthesized Belief Distribution:</span>
-                        <div className="tech-prob-pills">
-                          <span className="prob-pill pill-misleading">
-                            Misleading: {(verification.synthesized_probabilities.Misleading * 100).toFixed(1)}%
-                          </span>
-                          <span className="prob-pill pill-half-true">
-                            Half-True: {(verification.synthesized_probabilities["Half-True"] * 100).toFixed(1)}%
-                          </span>
-                          <span className="prob-pill pill-factual">
-                            Factual: {(verification.synthesized_probabilities.Factual * 100).toFixed(1)}%
-                          </span>
-                        </div>
-                      </div>
-                    )}
-
-                    {agentData.risk_score_breakdown?.explanation && (
-                      <p className="tech-explanation-note">
-                        {agentData.risk_score_breakdown.explanation}
+                  {/* 2. Verification Steps */}
+                  <div className="e-card e-steps-card">
+                    <div className="e-card-header">
+                      <span className="e-card-icon">📋</span>
+                      <h4>2. Verification Steps</h4>
+                    </div>
+                    {Array.isArray(mitigation.verification_steps) && mitigation.verification_steps.length > 0 ? (
+                      <ol className="e-steps-list">
+                        {mitigation.verification_steps.map((step, idx) => (
+                          <li key={idx}>{step}</li>
+                        ))}
+                      </ol>
+                    ) : (
+                      <p className="e-card-body-text">
+                        Consult official primary agency reports and independent fact-checkers before citing this claim.
                       </p>
                     )}
                   </div>
-                )}
+
+                  {/* 4. Missing Context */}
+                  <div className="e-card e-context-card">
+                    <div className="e-card-header">
+                      <span className="e-card-icon">🔍</span>
+                      <h4>3. Missing Context &amp; Information</h4>
+                    </div>
+                    <p className="e-card-body-text">
+                      {mitigation.missing_context || "No major informational gaps identified in benchmark records."}
+                    </p>
+                  </div>
+
+                  {/* 5. Reason for Recommendation */}
+                  <div className="e-card e-reason-card">
+                    <div className="e-card-header">
+                      <span className="e-card-icon">💡</span>
+                      <h4>4. Reason for Recommendation</h4>
+                    </div>
+                    <p className="e-card-body-text">
+                      {mitigation.reason || "Recommendations are derived directly from Agent D's risk assessment."}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Advisory Guardrail Note */}
+                <div className="e-advisory-guardrail">
+                  <span className="guardrail-icon">🛡️</span>
+                  <p>
+                    <strong>Advisory Notice:</strong> Recommendations are non-coercive editorial suggestions to help users make informed decisions. No automated censorship or content removal is executed.
+                  </p>
+                </div>
               </div>
             </section>
           )}

@@ -5309,4 +5309,454 @@ body {
   border-top: 1px solid #f1f5f9;
 }
 
+/* =========================================================
+   SIMPLIFIED AGENT D & AGENT E DUAL-SECTION DESIGN SYSTEM
+========================================================= */
+
+/* Section A: Agent D (Final Verification & Risk Assessment) */
+.section-a-agent-d-card {
+  border: 2px solid #2563eb !important;
+  background: #ffffff;
+  border-radius: 8px;
+  margin-top: 14px;
+}
+
+.agent-role-d {
+  background: #eff6ff !important;
+  color: #1d4ed8 !important;
+  border: 1px solid #bfdbfe !important;
+  font-weight: 700;
+}
+
+.final-verdict-chip {
+  font-size: 13px;
+  font-weight: 700;
+  padding: 5px 14px;
+  border-radius: 999px;
+  border: 1px solid;
+  letter-spacing: 0.3px;
+}
+
+.chip-verdict-high {
+  background: #fee2e2;
+  color: #991b1b;
+  border-color: #fca5a5;
+}
+
+.chip-verdict-moderate {
+  background: #fef3c7;
+  color: #92400e;
+  border-color: #fcd34d;
+}
+
+.chip-verdict-low {
+  background: #dcfce7;
+  color: #166534;
+  border-color: #86efac;
+}
+
+/* 4 Metrics Summary Grid */
+.d-metrics-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.d-metric-tile {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.d-tile-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #64748b;
+}
+
+.d-tile-value-row {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.d-tile-number {
+  font-size: 26px;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.1;
+}
+
+.d-tile-denom {
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.d-tile-badge {
+  display: inline-block;
+  align-self: flex-start;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 4px;
+  margin-top: 2px;
+}
+
+.d-tile-badge.badge-high {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.d-tile-badge.badge-moderate {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.d-tile-badge.badge-low {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.d-tile-main-text {
+  font-size: 18px;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.2;
+}
+
+.d-tile-subtext {
+  font-size: 11.5px;
+  color: #64748b;
+}
+
+/* Final Explanation Card */
+.d-final-explanation-card {
+  background: #f8fafc;
+  border-left: 4px solid #2563eb;
+  border-radius: 0 6px 6px 0;
+  padding: 14px 18px;
+  margin-bottom: 16px;
+}
+
+.d-box-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #2563eb;
+  display: block;
+  margin-bottom: 6px;
+}
+
+.d-final-explanation-text {
+  font-size: 14px;
+  line-height: 1.55;
+  color: #1e293b;
+  margin: 0;
+}
+
+/* Comparisons Grid */
+.d-comparisons-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.d-comparison-box {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.d-comp-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.d-comp-tag {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: #64748b;
+}
+
+.d-comp-status-pill {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid;
+}
+
+.d-comp-status-pill.status-agreement {
+  background: #dcfce7;
+  color: #166534;
+  border-color: #86efac;
+}
+
+.d-comp-status-pill.status-disagreement {
+  background: #fee2e2;
+  color: #991b1b;
+  border-color: #fca5a5;
+}
+
+.d-comp-status-pill.status-insufficient-evidence {
+  background: #f1f5f9;
+  color: #475569;
+  border-color: #cbd5e1;
+}
+
+.d-comp-status-pill.status-context {
+  background: #f0f9ff;
+  color: #0369a1;
+  border-color: #bae6fd;
+}
+
+.d-comp-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+}
+
+.d-comp-desc {
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: #475569;
+  margin: 0;
+}
+
+/* Agent Contributions */
+.d-contributions-wrapper {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 14px 16px;
+}
+
+.d-contributions-heading {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #475569;
+  margin: 0 0 10px;
+}
+
+.d-contributions-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.d-contrib-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.d-contrib-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.d-contrib-chip {
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.d-contrib-chip.chip-a {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+}
+
+.d-contrib-chip.chip-b {
+  background: #f0fdf4;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+}
+
+.d-contrib-chip.chip-c {
+  background: #fdf4ff;
+  color: #a21caf;
+  border: 1px solid #f5d0fe;
+}
+
+.d-contrib-role {
+  font-size: 12px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.d-contrib-text {
+  font-size: 12px;
+  line-height: 1.4;
+  color: #475569;
+  margin: 0;
+}
+
+/* =========================================================
+   Section B: Agent E (Mitigation & Recommendations)
+========================================================= */
+.section-b-agent-e-card {
+  border: 2px solid #0f766e !important;
+  background: #ffffff;
+  border-radius: 8px;
+  margin-top: 14px;
+}
+
+.agent-role-e {
+  background: #f0fdfa !important;
+  color: #0f766e !important;
+  border: 1px solid #99f6e4 !important;
+  font-weight: 700;
+}
+
+/* Sharing Recommendation Banner */
+.sharing-rec-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 20px;
+  border-radius: 6px;
+  border: 1px solid;
+  margin-bottom: 16px;
+}
+
+.sharing-rec-banner.rec-banner-danger {
+  background: #fef2f2;
+  border-color: #fca5a5;
+  color: #991b1b;
+}
+
+.sharing-rec-banner.rec-banner-warning {
+  background: #fffbeb;
+  border-color: #fcd34d;
+  color: #92400e;
+}
+
+.sharing-rec-banner.rec-banner-success {
+  background: #f0fdf4;
+  border-color: #86efac;
+  color: #166534;
+}
+
+.sharing-rec-kicker {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display: block;
+  opacity: 0.85;
+}
+
+.sharing-rec-verdict {
+  font-size: 20px;
+  font-weight: 800;
+  margin: 2px 0 0;
+  line-height: 1.2;
+}
+
+.sharing-rec-icon {
+  font-size: 28px;
+  line-height: 1;
+}
+
+/* Recommendations 4-Card Grid */
+.e-recommendations-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.e-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.e-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.e-card-header h4 {
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+}
+
+.e-card-icon {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.e-card-body-text {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: #334155;
+  margin: 0;
+}
+
+.e-steps-list {
+  padding-left: 20px;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: #334155;
+}
+
+.e-advisory-guardrail {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.e-advisory-guardrail p {
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: #64748b;
+  margin: 0;
+}
+
+
 
